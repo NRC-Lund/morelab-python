@@ -10,7 +10,7 @@ In the folder QTM, we keep Python scripts for the Qualisys Track Manager softwar
    ```sh
    cd "C:\Program Files\Qualisys\Qualisys Track Manager"
    ```
-3. Run this command, but replace the path with the correct path this repository:
+3. Run this command, but replace the path with the correct path to this repository:
    ```sh
    python -m pip install -r "C:\Users\MyName\Documents\Repositories\morelab-python\QTM\requirements.txt"
    ```
