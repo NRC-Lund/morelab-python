@@ -24,7 +24,6 @@
 import sys
 import os
 import inspect
-import importlib
 import numpy as np
 
 # Set up QTM Python API
@@ -32,15 +31,7 @@ this_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe(
 if this_dir not in sys.path:
     sys.path.append(this_dir)
 import qtm
-import helpers.menu_tools
-import helpers.traj
-
-importlib.reload(helpers.menu_tools)
-importlib.reload(helpers.traj)
-from helpers.menu_tools import add_menu_item, add_command
-from helpers.traj import get_default_markerset_marker, get_selected_markerset_marker, get_labeled_marker_ids, \
-    get_unlabeled_marker_ids, get_marker_positions
-
+from helpers.traj import get_unlabeled_marker_ids
 
 def process_side(id_wb, id_wl, id_wr, side):
     # Left or right

@@ -24,31 +24,34 @@
 # Author: Victor Leroy (victor.leroy@med.lu.se)
 # #############################################################################
 
-import sys, os,inspect
+import sys, os, inspect, importlib
 
-# ensure project root on path
+# Ensure project root on path
 this_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 if this_dir not in sys.path:
     sys.path.append(this_dir)
 
+# Impoprt Qualisys modules
 import qtm
 from helpers.printing import try_print_except
 from helpers.menu_tools import add_menu_item
 
-from pipelines.filters import apply_butterworth_filter
-from pipelines.calibrations import static_calibration, dynamic_calibration
-from pipelines.other import other_stuff
-from pipelines.fix_sip import fix_sips
+# Import MoRe-Lab modules
+import pipelines.filters
+importlib.reload(pipelines.filters) # Reload to prevent caching.
+import pipelines.calibrations
+importlib.reload(pipelines.calibrations) # Reload to prevent caching
+import pipelines.fix_sips
+importlib.reload(pipelines.fix_sips) # Reload to prevent caching.
 
 MENU_NAME = "MoreLab"
 
 def _setup_commands():
     cmds = [
-        ("Custom Filter", apply_butterworth_filter),
-        ("Other Stuff", other_stuff),
-        ("Static calibration", static_calibration),
-        ("Dynamic calibration", dynamic_calibration),
-        ("fix sip", fix_sips)
+        ("Custom Filter", pipelines.filters.apply_butterworth_filter),
+        ("Static calibration", pipelines.calibrations.static_calibration),
+        ("Dynamic calibration", pipelines.calibrations.dynamic_calibration),
+        ("Fix SIPS", pipelines.fix_sips.fix_sips)
     ]
     for label, fn in cmds:
         qtm.gui.add_command(label)
@@ -61,16 +64,16 @@ def _setup_menu():
 
     add_menu_item(fmid, "Apply Butterworth Filter", "Custom Filter")
     # add_menu_item(fmid, "Apply ForcePlate Filter", "Custom Force Plate Filter")
-    add_menu_item(mid, "Other Stuff", "Other Stuff")
     add_menu_item(amid, "Static Calibration", "Static calibration")
     add_menu_item(amid, "Dynamic Calibration", "Dynamic calibration")
-    add_menu_item(mid, "fix sip", "fix sip")
+    add_menu_item(mid, "Fix SIPS markers", "Fix SIPS")
 
 def add_menu():
     try:
-        print("Reloading modules…")
+        print("Reloading modules...")
         _setup_commands()
         _setup_menu()
+        print("Done!")
     except Exception as e:
         try_print_except(str(e), "Press 'Reload scripts' to try again.")
 
