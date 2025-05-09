@@ -34,61 +34,81 @@ import qtm
 from helpers.traj import get_unlabeled_marker_ids, get_labeled_marker_ids
 
 def process_side(id_wb, id_wl, id_wr, side, prefix):
+    debug = False
+
     # Left or right
     if side == "L":
-        waist_markers = [id_wb, id_wl]
-        color = qtm.data.object.trajectory.get_color(id_wl)
+        id_this = id_wl
+        id_other = id_wr
     else:
-        waist_markers = [id_wb, id_wr]
-        color = qtm.data.object.trajectory.get_color(id_wr)
+        id_this = id_wr
+        id_other = id_wl
 
     # Create new trajectory for the LSips or RSips
     qtm.data.object.trajectory.add_trajectory(f"{prefix}_{side}Sips")
     new_id = qtm.data.object.trajectory.find_trajectory(f"{prefix}_{side}Sips")
-    qtm.data.object.trajectory.set_color(new_id, color)
+    qtm.data.object.trajectory.set_color(new_id, qtm.data.object.trajectory.get_color(id_this))
 
     # Identify nearest unidentified marker to waist markers and assign to new trajectory
     frames = qtm.gui.timeline.get_measured_range()
     frame_range = range(frames['start'], frames['end'])
     i = 0  # index for frame number
+    traj_end = 0 # end of current SIPS trajectory
     while i < len(frame_range):
         qtm.gui.timeline.set_current_frame(i)
         frame = frame_range[i]
 
-        # Get coordinates of waist markers
-        sample1 = qtm.data.series._3d.get_sample(waist_markers[0], i)
-        sample2 = qtm.data.series._3d.get_sample(waist_markers[1], i)
-        waist_cent = np.mean(np.array([sample1["position"], sample2["position"]]), axis=0)
+        # Estimate SIPS position
+        pos_wb = np.array(qtm.data.series._3d.get_sample(id_wb, i)["position"]) # Back marker
+        pos_this = np.array(qtm.data.series._3d.get_sample(id_this, i)["position"]) # Side marker, this side
+        pos_other = np.array(qtm.data.series._3d.get_sample(id_other, i)["position"]) # Side marker, other side
+        sips_estimate = pos_wb + (pos_this - pos_wb) * (1/3) # Estimate SIPS position as 1/3 of the way from back to side marker
+        sips_estimate_other = pos_wb + (pos_other - pos_wb) * (1/3) # Estimate SIPS position on other side (used for not assigning the SIPS from the other side when this side is missing)
 
         # Find closest marker
+        dist_limit = 100 # Max allowed distance to sips_estimate in mm.
         min_dist = float('inf')
-        sips_marker_id = None
+        candidate_id = None
         id_unlabeled = get_unlabeled_marker_ids()  # repeat command because unidentified marker list has now changed
         for marker_id in id_unlabeled:
             sample = qtm.data.series._3d.get_sample(marker_id, i)
             if sample:
-                dist = np.linalg.norm(np.array(sample["position"]) - waist_cent)
-                if dist < min_dist:
+                dist = np.linalg.norm(np.array(sample["position"]) - sips_estimate)
+                dist_other = np.linalg.norm(np.array(sample["position"]) - sips_estimate_other)
+                if dist < min_dist and dist < dist_limit and dist < dist_other:
                     min_dist = dist
-                    sips_marker_id = marker_id
+                    candidate_id = marker_id
 
-        # Check candidate
-        if sips_marker_id:
-            traj_length = qtm.data.series._3d.get_sample_range(sips_marker_id)
-            if traj_length['start'] < i:
+        # Check if candidate is overlapping with previous SIPS trajectory
+        if candidate_id:
+            traj_range = qtm.data.series._3d.get_sample_range(candidate_id)
+            if traj_range['start'] < traj_end:
                 print(f"At frame {i}, the closest unidentified part is overlapping with previous {prefix}_{side}Sips parts.")
-                sips_marker_id = None
+                candidate_id = None
 
-        if sips_marker_id:
+        # Assign candidate to trajectory
+        if candidate_id:
+            if debug:
+                print(f"At frame {i}, found candidate marker {candidate_id} at distance {min_dist:.2f} mm.")
             # Assign identified part to trajectory
-            qtm.data.object.trajectory.move_parts(sips_marker_id, new_id)
+            qtm.data.object.trajectory.move_parts(candidate_id, new_id)
 
-        # Find new end point of trajectory and move to that frame
-        part_count = qtm.data.object.trajectory.get_part_count(new_id)
-        marker_info = qtm.data.object.trajectory.get_part(new_id, part_count - 1)
-        traj_end = marker_info['range']['end']
-        i = traj_end + 1
+            # Find new end point of trajectory and move to that frame
+            part_count = qtm.data.object.trajectory.get_part_count(new_id)
+            marker_info = qtm.data.object.trajectory.get_part(new_id, part_count - 1)
+            traj_end = marker_info['range']['end']
+            i = traj_end + 1
+        else:
+            # No canditate found, move to next frame
+            i += 1
 
+    # Check if the new trajectory is continuous
+    gap_ranges = qtm.data.series._3d.get_gap_ranges(new_id)
+    traj_length = qtm.data.series._3d.get_sample_range(new_id)
+    if traj_length['start'] != 0 or frames['end'] != traj_length['end'] or gap_ranges:
+        print(f"A new {prefix}_{side}Sips trajectory was created, but it is not continuous. Please check the gaps.")
+    else:
+        print(f"A new {prefix}_{side}Sips trajectory was created. It has no gaps.")
 
 def check_trajectory_continuity(id):
     gap_ranges = qtm.data.series._3d.get_gap_ranges(id)
@@ -102,6 +122,8 @@ def check_trajectory_continuity(id):
         return True
 
 def fix_sips():
+    print("Starting fix_sips.py...")
+
     # Get label prefix
     ids = get_labeled_marker_ids()
     for id in ids:
@@ -158,10 +180,9 @@ def fix_sips():
         print(f"{filled_count} gap-filled parts have been deleted.")
 
     # Process left side
+    print(f"Processing left side...")
     process_side(id_wb, id_wl, id_wr, "L", prefix)
 
     # Process right side
+    print(f"Processing right side...")
     process_side(id_wb, id_wl, id_wr, "R", prefix)
-
-    # Report what was done
-    print(f"SIPS markers have been identified and assigned to new trajectories {prefix}_LSips and {prefix}_RSips.")
