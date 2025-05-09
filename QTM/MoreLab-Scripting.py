@@ -38,11 +38,11 @@ from helpers.menu_tools import add_menu_item
 
 # Import MoRe-Lab modules
 import pipelines.filters
-importlib.reload(pipelines.filters) # Reload to prevent caching.
+importlib.reload(pipelines.filters) # Reload to clear cache.
 import pipelines.calibrations
-importlib.reload(pipelines.calibrations) # Reload to prevent caching
+importlib.reload(pipelines.calibrations) # Reload to clear cache.
 import pipelines.fix_sips
-importlib.reload(pipelines.fix_sips) # Reload to prevent caching.
+importlib.reload(pipelines.fix_sips) # Reload to clear cache.
 
 MENU_NAME = "MoreLab"
 

@@ -31,9 +31,9 @@ this_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe(
 if this_dir not in sys.path:
     sys.path.append(this_dir)
 import qtm
-from helpers.traj import get_unlabeled_marker_ids
+from helpers.traj import get_unlabeled_marker_ids, get_labeled_marker_ids
 
-def process_side(id_wb, id_wl, id_wr, side):
+def process_side(id_wb, id_wl, id_wr, side, prefix):
     # Left or right
     if side == "L":
         waist_markers = [id_wb, id_wl]
@@ -43,8 +43,8 @@ def process_side(id_wb, id_wl, id_wr, side):
         color = qtm.data.object.trajectory.get_color(id_wr)
 
     # Create new trajectory for the LSips or RSips
-    qtm.data.object.trajectory.add_trajectory(f"Q_{side}Sips")
-    new_id = qtm.data.object.trajectory.find_trajectory(f"Q_{side}Sips")
+    qtm.data.object.trajectory.add_trajectory(f"{prefix}_{side}Sips")
+    new_id = qtm.data.object.trajectory.find_trajectory(f"{prefix}_{side}Sips")
     qtm.data.object.trajectory.set_color(new_id, color)
 
     # Identify nearest unidentified marker to waist markers and assign to new trajectory
@@ -76,7 +76,7 @@ def process_side(id_wb, id_wl, id_wr, side):
         if sips_marker_id:
             traj_length = qtm.data.series._3d.get_sample_range(sips_marker_id)
             if traj_length['start'] < i:
-                print(f"At frame {i}, the closest unidentified part is overlapping with previous Q_{side}Sips parts.")
+                print(f"At frame {i}, the closest unidentified part is overlapping with previous {prefix}_{side}Sips parts.")
                 sips_marker_id = None
 
         if sips_marker_id:
@@ -101,26 +101,43 @@ def check_trajectory_continuity(id):
     else:
         return True
 
-
 def fix_sips():
-    id_wb = qtm.data.object.trajectory.find_trajectory("Q_WaistBack")
-    id_wl = qtm.data.object.trajectory.find_trajectory("Q_WaistLFront")
-    id_wr = qtm.data.object.trajectory.find_trajectory("Q_WaistRFront")
+    # Get label prefix
+    ids = get_labeled_marker_ids()
+    for id in ids:
+        label = qtm.data.object.trajectory.get_label(id)
+        if label is not None:
+            prefix = label.split("_")[0]
+            break
+    else:
+        print("No labeled markers found. Please label the markers before running this script.")
+        return
+    print(f"Using prefix: {prefix}")
+
+    # Get IDs of waist markers
+    id_wb = qtm.data.object.trajectory.find_trajectory(f"{prefix}_WaistBack")
+    if id_wb is None: print(f"Marker {prefix}_WaistBack is missing."); return
+    id_wl = qtm.data.object.trajectory.find_trajectory(f"{prefix}_WaistLFront")
+    if id_wl is None: print(f"Marker {prefix}_WaistLFront is missing."); return
+    id_wr = qtm.data.object.trajectory.find_trajectory(f"{prefix}_WaistRFront")
+    if id_wr is None: print(f"Marker {prefix}_WaistRFront is missing."); return
+
+    # Check if waist markers are fully labeled
     if not check_trajectory_continuity(id_wb): return
     if not check_trajectory_continuity(id_wl): return
     if not check_trajectory_continuity(id_wr): return
 
-    # Get IDs of waist markers
-    id_sl = qtm.data.object.trajectory.find_trajectory("Q_LSips")
-    id_sr = qtm.data.object.trajectory.find_trajectory("Q_RSips")
-
     # Unidentify sips markers if they exist
+    id_sl = qtm.data.object.trajectory.find_trajectory(f"{prefix}_LSips")
     if id_sl:
         qtm.data.object.trajectory.set_label(id_sl)
+        print(f"Unidentified existing {prefix}_LSips trajectory.")
+    id_sr = qtm.data.object.trajectory.find_trajectory(f"{prefix}_RSips")
     if id_sr:
         qtm.data.object.trajectory.set_label(id_sr)
+        print(f"Unidentified existing {prefix}_RSips trajectory.")
 
-    ## split all unidentified trajectories into single parts and delete filled parts
+    ## Split all unidentified trajectories into single parts and delete gap-filled parts
     id_unlabeled = get_unlabeled_marker_ids()
     filled_count = 0
     for marker_id in id_unlabeled:
@@ -141,10 +158,10 @@ def fix_sips():
         print(f"{filled_count} gap-filled parts have been deleted.")
 
     # Process left side
-    process_side(id_wb, id_wl, id_wr, "L")
+    process_side(id_wb, id_wl, id_wr, "L", prefix)
 
     # Process right side
-    process_side(id_wb, id_wl, id_wr, "R")
+    process_side(id_wb, id_wl, id_wr, "R", prefix)
 
     # Report what was done
-    print("SIPS markers have been identified and assigned to the correct trajectories.")
+    print(f"SIPS markers have been identified and assigned to new trajectories {prefix}_LSips and {prefix}_RSips.")
