@@ -25,19 +25,6 @@ import numpy as np
 from scipy.signal import butter, filtfilt
 import qtm
 
-trajectory_labels = [ ... ]
-
-def apply_butterworth_filter(order=4, cutoff=6.0):
-    """
-    Apply a 4th-order Butterworth filter to all tracked trajectories.
-    """
-    # function body…
-
-
-import numpy as np
-from scipy.signal import butter, filtfilt
-import qtm
-
 trajectory_labels = [
     "Q_HeadL", "Q_HeadR", "Q_HeadFront", "Q_Chest", "Q_SpineThoracic2",
     "Q_SpineThoracic12", "Q_LShoulderTop", "Q_LArm", "Q_LElbowOut", "Q_LElbowIn",

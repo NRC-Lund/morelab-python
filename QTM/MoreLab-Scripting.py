@@ -37,18 +37,20 @@ from helpers.printing import try_print_except
 from helpers.menu_tools import add_menu_item
 
 # Import MoRe-Lab modules
-import pipelines.filters
-importlib.reload(pipelines.filters) # Reload to clear cache.
-import pipelines.calibrations
-importlib.reload(pipelines.calibrations) # Reload to clear cache.
 import pipelines.fix_sips
 importlib.reload(pipelines.fix_sips) # Reload to clear cache.
+import pipelines.calibrations
+importlib.reload(pipelines.calibrations) # Reload to clear cache.
+import pipelines.other
+importlib.reload(pipelines.other)
+import pipelines.custom_filters
+importlib.reload(pipelines.custom_filters) # Reload to clear cache.
 
 MENU_NAME = "MoreLab"
 
 def _setup_commands():
     cmds = [
-        ("Custom Filter", pipelines.filters.apply_butterworth_filter),
+        ("Custom Filter", pipelines.custom_filters.apply_butterworth_filter),
         ("Static calibration", pipelines.calibrations.static_calibration),
         ("Dynamic calibration", pipelines.calibrations.dynamic_calibration),
         ("Fix SIPS", pipelines.fix_sips.fix_sips)
