@@ -69,6 +69,10 @@ reconstruct_mapping = {
         ["Q_HeadR", "Q_Chest", "Q_SpineThoracic2"],
         ["Q_HeadL", "Q_Chest", "Q_SpineThoracic2"]
     ],
+    "Q_SpineThoracic12": [
+        ["Q_WaistBack","Q_LShoulderTop","Q_RShoulderTop"],
+        ["Q_WaistBack","Q_LSips","Q_RSips"]
+    ],
     "Q_RAnkleOut": [
         ["Q_RAnkleIn", "Q_RHeelBack", "Q_RForefoot2"],
         ["Q_RAnkleIn", "Q_RHeelBack", "Q_RForefoot1"],
@@ -93,6 +97,11 @@ reconstruct_mapping = {
     "Q_RKneeIn":   [
         ["Q_RKneeOut", "Q_RThighLow", "Q_RThighMedial"],
         ["Q_RKneeOut", "Q_RShinFrontHigh", "Q_RShinFrontLow"]
+    ],
+    "Q_RThighMedial":   [
+        ["Q_RKneeOut", "Q_RThighLow", "Q_RThighHigh"],
+        ["Q_RKneeOut", "Q_RThighLow", "Q_RWaistFront"],
+        ["Q_RKneeOut", "Q_RThighHigh", "Q_RWaistFront"]
     ],
     "Q_WaistRFront": [
         ["Q_RSips", "Q_WaistR", "Q_WaistLFront"]
@@ -130,6 +139,11 @@ reconstruct_mapping = {
         ["Q_LKneeOut", "Q_LThighLow", "Q_LThighMedial"],
         ["Q_LKneeOut", "Q_LShinFrontHigh", "Q_LShinFrontLow"]
     ],
+    "Q_LThighMedial":   [
+        ["Q_LKneeOut", "Q_LThighLow", "Q_LThighHigh"],
+        ["Q_LKneeOut", "Q_LThighLow", "Q_LWaistFront"],
+        ["Q_LKneeOut", "Q_LThighHigh", "Q_LWaistFront"]
+    ],
     "Q_WaistLFront": [
         ["Q_LSips", "Q_WaistL", "Q_WaistRFront"]
     ],
@@ -163,25 +177,30 @@ def static_calibration():
     global _static_positions
     print("Running static calibration…")
 
-    # Determine the middle frame of the measured range
+    # 1) Get frame range
     rng = qtm.gui.timeline.get_measured_range()
+    # 2) Choose midpoint for best stability
     frame = (rng["start"] + rng["end"]) // 2
 
     _static_positions.clear()
     missing = []
+
     for label in trajectory_labels:
-        # Find trajectory in QTM by name
+        # a) find trajectory in QTM by name
         tid = qtm.data.object.trajectory.find_trajectory(label)
         if tid is None:
-            # Keep track of markers not found in static trial
+            # marker not present in this static trial
             missing.append(label)
             continue
+        # b) sample 3D data
         sample = qtm.data.series._3d.get_sample(tid, frame)
         if not sample or sample.get("position") is None:
             missing.append(label)
             continue
+        # c) store as numpy array
         _static_positions[label] = np.array(sample["position"])
 
+    # report missing labels
     if missing:
         print(f"WARNING: static data missing for {len(missing)} markers:\n  {missing}")
     print(f"Static calibration complete: captured {len(_static_positions)} positions.")
@@ -239,44 +258,49 @@ def _select_targets():
     frames = list(range(rng["start"], rng["end"] + 1))
     incomplete = []
 
-    # Compute present count per target
+    # 1) Assess each potential target
     for target in reconstruct_mapping:
         tid = qtm.data.object.trajectory.find_trajectory(target)
         present = 0
         if tid is not None:
             for f in frames:
-                sample = qtm.data.series._3d.get_sample(tid, f)
-                if sample and sample.get("position") is not None:
+                samp = qtm.data.series._3d.get_sample(tid, f)
+                if samp and samp.get("position") is not None:
                     present += 1
-        # if any frames missing, include
+        # 2) record if incomplete
         if present < len(frames):
             incomplete.append((target, present, len(frames)))
 
-    # Nothing to fix
+    # 3) no incomplete: inform and exit
     if not incomplete:
         QtWidgets.QMessageBox.information(None, "Reconstruction",
             "All targets have full data. Nothing to reconstruct.")
         return []
 
-    # Show multi-selection list with fill %
+    # 4) build dialog
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     dlg = QtWidgets.QDialog()
     dlg.setWindowTitle("Select Trajectories to Recreate")
     layout = QtWidgets.QVBoxLayout(dlg)
-    lw = QtWidgets.QListWidget()
+    list_widget = QtWidgets.QListWidget()
+    # populate with fill info
     for tgt, pres, tot in incomplete:
-        pct = pres/tot*100
-        lw.addItem(f"{tgt} ({pres}/{tot}, {pct:.1f}% filled)")
-    lw.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
-    layout.addWidget(lw)
-    btns = QtWidgets.QDialogButtonBox(
-        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-    btns.accepted.connect(dlg.accept)
-    btns.rejected.connect(dlg.reject)
-    layout.addWidget(btns)
+        pct = pres / tot * 100
+        list_widget.addItem(f"{tgt} ({pres}/{tot}, {pct:.1f}% filled)")
+    list_widget.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+    layout.addWidget(list_widget)
+    # OK/Cancel
+    buttons = QtWidgets.QDialogButtonBox(
+        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+    )
+    buttons.accepted.connect(dlg.accept)
+    buttons.rejected.connect(dlg.reject)
+    layout.addWidget(buttons)
+
     if dlg.exec_() != QtWidgets.QDialog.Accepted:
         return []
-    return [item.text().split()[0] for item in lw.selectedItems()]
+    # extract selected labels
+    return [item.text().split()[0] for item in list_widget.selectedItems()]
 
 # ------------------------------------------------------------------------------
 # FUNCTION: DYNAMIC CALIBRATION
@@ -295,11 +319,19 @@ def _select_targets():
 #   4) Print summary per target ("partial add" vs "full replace")
 # ------------------------------------------------------------------------------
 def dynamic_calibration(selected_targets=None):
+    """
+    Reconstruct missing trajectories using fallback source sets.
+
+    - If >25% of frames already have data for a target, only the missing frames are reconstructed (partial add).
+    - Otherwise, all frames are reconstructed (full replace).
+    For each frame, we dynamically choose the first source-triple with valid samples.
+    """
+    # 1) Ensure static calibration has been run
     if not _static_positions:
         print("ERROR: Run static_calibration() first.")
         return
 
-        # 2) Determine which targets to process (via GUI or explicit list)
+    # 2) Determine which targets to process
     if selected_targets is None:
         targets = _select_targets()
     else:
@@ -308,28 +340,15 @@ def dynamic_calibration(selected_targets=None):
         print("No targets selected. Aborting.")
         return
 
-        # 3) Prepare frame list
+    # 3) Prepare frame list
     rng = qtm.gui.timeline.get_measured_range()
     frames = list(range(rng["start"], rng["end"] + 1))
     total = len(frames)
 
-    # 4) Process each target
+    # 4) Loop through each selected target
     for target in targets:
-        # a) Find the first valid source set with ≥3 tracked markers
-        sources = None
-        source_tids = []
-        for candidate in reconstruct_mapping[target]:
-            tids = [qtm.data.object.trajectory.find_trajectory(m) for m in candidate]
-            valid = [(m, tid) for m, tid in zip(candidate, tids) if tid is not None]
-            if len(valid) >= 3:
-                sources = [m for m, _ in valid]
-                source_tids = [tid for _, tid in valid]
-                break
-        if sources is None:
-            print(f"ERROR: no available source set for {target}. Skipping.")
-            continue
-
-        # b) Determine existing frames for this target
+        print(f"Processing target: {target}")
+        # a) Check existing data frames
         tid_t = qtm.data.object.trajectory.find_trajectory(target)
         present_frames = []
         if tid_t is not None:
@@ -339,55 +358,66 @@ def dynamic_calibration(selected_targets=None):
                     present_frames.append(f)
         present_count = len(present_frames)
         ratio = present_count / total if total else 0
-        print(f"The ratio is of {ratio}.")
 
-        # c) Build the static source matrix A
-        A = np.vstack([_static_positions[m] for m in sources])  # k×3
+        # b) Pre-calculate static positions for all candidate markers
+        #    to speed up per-frame lookup
+        static_cache = {}
+        for cand_list in reconstruct_mapping[target]:
+            for m in cand_list:
+                static_cache[m] = _static_positions.get(m)
 
-        # d) Partial add: only fill missing frames
-        if ratio > 0.25 and tid_t is not None:
-            # Loop through frames and reconstruct only missing ones
-            print("Replacing frame by frame")
-            for f in frames:
-                print(f"We are at frame {f}")
-                if f in present_frames:
-                    continue  # skip existing data
-                # Gather dynamic source positions B
-                B = np.vstack([
-                    np.array(qtm.data.series._3d.get_sample(tid, f)["position"])
-                    for tid in source_tids
-                ])
-                # Compute optimal R, t and apply to static target
-                R, t = _umeyama(A, B)
-                p0 = _static_positions[target]
-                pos = R.dot(p0) + t
-                # Write only this single-frame sample
-                qtm.data.series._3d.set_samples(
-                    tid_t,
-                    {"start": f, "end": f},
-                    [{"position": pos.tolist(), "residual": 0.0}]
-                )
-            print(f"Reconstructed missing frames for {target} (partial add, {present_count}/{total} existed).")
-        else:
-            # e) Full replace: reconstruct all frames
-            print("Full recreation of the selected trajectory")
-            recon_samples = []
-            for f in frames:
-                # Same Umeyama-based reconstruction for every frame
-                B = np.vstack([
-                    np.array(qtm.data.series._3d.get_sample(tid, f)["position"])
-                    for tid in source_tids
-                ])
-                R, t = _umeyama(A, B)
-                p0 = _static_positions[target]
-                pos = R.dot(p0) + t
-                recon_samples.append({"position": pos.tolist(), "residual": 0.0})
-            # Create trajectory if absent
-            if tid_t is None:
-                tid_t = qtm.data.object.trajectory.add_trajectory(target)
-            # Overwrite full range
-            qtm.data.series._3d.set_samples(tid_t, rng, recon_samples)
-            print(f"Reconstructed all frames for {target} (full replace, {present_count}/{total} existed).")
+        # c) Reconstruction logic per frame
+        # Partial add: reconstruct only missing frames
+        # Full replace: reconstruct all frames
+        to_reconstruct = ([f for f in frames if f not in present_frames]
+                          if ratio > 0.25 and tid_t is not None
+                          else frames)
+
+        # Ensure trajectory exists for writing single frames
+        if tid_t is None:
+            tid_t = qtm.data.object.trajectory.add_trajectory(target)
+
+        for f in to_reconstruct:
+            # For each frame, find a valid source triple
+            A = None
+            B = None
+            for cand in reconstruct_mapping[target]:
+                # attempt to gather dynamic samples for this candidate
+                static_pts = []
+                dyn_pts = []
+                valid = True
+                for m in cand:
+                    tid = qtm.data.object.trajectory.find_trajectory(m)
+                    if tid is None:
+                        valid = False
+                        break
+                    samp = qtm.data.series._3d.get_sample(tid, f)
+                    if not samp or samp.get("position") is None:
+                        valid = False
+                        break
+                    # collect static and dynamic
+                    static_pts.append(static_cache[m])
+                    dyn_pts.append(np.array(samp["position"]))
+                if valid and len(static_pts) >= 3:
+                    A = np.vstack(static_pts)
+                    B = np.vstack(dyn_pts)
+                    break
+            if A is None:
+                # Could not find any valid triple at this frame
+                continue
+            # Compute optimal transform and reconstruct target position
+            R, t = _umeyama(A, B)
+            p0 = _static_positions[target]
+            pos = R.dot(p0) + t
+            # Write back only this frame
+            qtm.data.series._3d.set_samples(
+                tid_t,
+                {"start": f, "end": f},
+                [{"position": pos.tolist(), "residual": 0.0}]
+            )
+        # d) Summary message
+        mode = "partial add" if ratio > 0.25 and present_count < total else "full replace"
+        print(f"{mode.capitalize()} for {target}: {present_count}/{total} frames existed.")
 
 # ------------------------------------------------------------------------------
 # CLI ENTRYPOINT
