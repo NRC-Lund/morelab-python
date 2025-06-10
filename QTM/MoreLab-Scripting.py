@@ -42,9 +42,22 @@ importlib.reload(pipelines.fix_sips) # Reload to clear cache.
 import pipelines.calibrations
 importlib.reload(pipelines.calibrations) # Reload to clear cache.
 import pipelines.other
-importlib.reload(pipelines.other)
+importlib.reload(pipelines.other) # Reload to clear cache.
 import pipelines.custom_filters
 importlib.reload(pipelines.custom_filters) # Reload to clear cache.
+import pipelines.remove_spikes
+importlib.reload(pipelines.remove_spikes) # Reload to clear cache.
+import pipelines.pelvis_gap_fill_relational
+importlib.reload(pipelines.pelvis_gap_fill_relational) # Reload to clear cache.
+import pipelines.thigh_gap_fill_relational
+importlib.reload(pipelines.thigh_gap_fill_relational) # Reload to clear cache.
+import pipelines.shank_gap_fill_relational
+importlib.reload(pipelines.shank_gap_fill_relational) # Reload to clear cache.
+import pipelines.foot_gap_fill_relational
+importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
+
+
+
 
 MENU_NAME = "MoreLab"
 
@@ -53,7 +66,12 @@ def _setup_commands():
         ("Custom Filter", pipelines.custom_filters.apply_butterworth_filter),
         ("Static calibration", pipelines.calibrations.static_calibration),
         ("Dynamic calibration", pipelines.calibrations.dynamic_calibration),
-        ("Fix SIPS", pipelines.fix_sips.fix_sips)
+        ("Fix SIPS", pipelines.fix_sips.fix_sips),
+        ("Remove Spikes", pipelines.remove_spikes.remove_spikes),
+        ("Fill Gaps in Pelvis (Relational)", pipelines.pelvis_gap_fill_relational.pelvis_gap_fill_relational),
+        ("Fill Gaps in Thigh (Relational)", pipelines.thigh_gap_fill_relational.thigh_gap_fill_relational),
+        ("Fill Gaps in Shank (Relational)", pipelines.shank_gap_fill_relational.shank_gap_fill_relational),
+        ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational)
     ]
     for label, fn in cmds:
         qtm.gui.add_command(label)
@@ -63,12 +81,18 @@ def _setup_menu():
     mid = qtm.gui.insert_menu_submenu(None, MENU_NAME, None)
     fmid = qtm.gui.insert_menu_submenu(mid, "Filters", None)
     amid = qtm.gui.insert_menu_submenu(mid, "Add trajectory", None)
+    gmid = qtm.gui.insert_menu_submenu(mid, "Gap Filling (Relational)", None)
 
     add_menu_item(fmid, "Apply Butterworth Filter", "Custom Filter")
     # add_menu_item(fmid, "Apply ForcePlate Filter", "Custom Force Plate Filter")
     add_menu_item(amid, "Static Calibration", "Static calibration")
     add_menu_item(amid, "Dynamic Calibration", "Dynamic calibration")
     add_menu_item(mid, "Fix SIPS markers", "Fix SIPS")
+    add_menu_item(mid, "Remove Spikes", "Remove Spikes")
+    add_menu_item(gmid, "Pelvis", "Fill Gaps in Pelvis (Relational)")
+    add_menu_item(gmid, "Thigh", "Fill Gaps in Thigh (Relational)")
+    add_menu_item(gmid, "Shank", "Fill Gaps in Shank (Relational)")
+    add_menu_item(gmid, "Foot", "Fill Gaps in Foot (Relational)")
 
 def add_menu():
     try:
