@@ -55,7 +55,8 @@ import pipelines.shank_gap_fill_relational
 importlib.reload(pipelines.shank_gap_fill_relational) # Reload to clear cache.
 import pipelines.foot_gap_fill_relational
 importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
-
+from pipelines.auto_label import gui_generate_reference_distribution
+importlib.reload(pipelines.auto_label) # Reload to clear cache.
 
 
 
@@ -71,7 +72,8 @@ def _setup_commands():
         ("Fill Gaps in Pelvis (Relational)", pipelines.pelvis_gap_fill_relational.pelvis_gap_fill_relational),
         ("Fill Gaps in Thigh (Relational)", pipelines.thigh_gap_fill_relational.thigh_gap_fill_relational),
         ("Fill Gaps in Shank (Relational)", pipelines.shank_gap_fill_relational.shank_gap_fill_relational),
-        ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational)
+        ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
+        ("Generate reference distribution", gui_generate_reference_distribution)
     ]
     for label, fn in cmds:
         qtm.gui.add_command(label)
@@ -82,6 +84,7 @@ def _setup_menu():
     fmid = qtm.gui.insert_menu_submenu(mid, "Filters", None)
     amid = qtm.gui.insert_menu_submenu(mid, "Add trajectory", None)
     gmid = qtm.gui.insert_menu_submenu(mid, "Gap Filling (Relational)", None)
+    lmid = qtm.gui.insert_menu_submenu(mid, "Auto label", None)
 
     add_menu_item(fmid, "Apply Butterworth Filter", "Custom Filter")
     # add_menu_item(fmid, "Apply ForcePlate Filter", "Custom Force Plate Filter")
@@ -93,6 +96,7 @@ def _setup_menu():
     add_menu_item(gmid, "Thigh", "Fill Gaps in Thigh (Relational)")
     add_menu_item(gmid, "Shank", "Fill Gaps in Shank (Relational)")
     add_menu_item(gmid, "Foot", "Fill Gaps in Foot (Relational)")
+    add_menu_item(lmid, "Generate reference distribution", "Generate reference distribution")
 
 def add_menu():
     try:
