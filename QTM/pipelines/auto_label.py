@@ -3,8 +3,43 @@ import numpy as np
 import os
 from typing import Tuple
 
+# Set up QTM Python API
+#this_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+#if this_dir not in sys.path:
+#    sys.path.append(this_dir)
+#import qtm
+from helpers.traj import get_unlabeled_marker_ids, get_labeled_marker_ids, get_marker_positions
+
+
 def gui_generate_reference_distribution():
-    #print(qtm.get_version())
+    # Check QTM version
+    qtm_version = qtm.get_version()
+    if qtm_version['major']<2025:
+        print("Requires QTM 2025.1 or later.")
+        return
+
+    # Get labeled trajectories
+    ids = get_labeled_marker_ids()
+
+    # Remove prefixes from labels
+    labels = []
+    for id in ids:
+        # Remove prefix
+        label = qtm.data.object.trajectory.get_label(id)
+        before, sep, after = label.partition("_")
+        labels.append(after if sep else label) # Safe also if no prefix
+    labels = np.array(labels, dtype=object)    # Make it indexable
+
+    # Get positions
+    pos = get_positions(ids)
+    #print(f"Combined position data shape: {pos.shape}")
+
+    # Calculate reference distributions
+    print(f"Calculating reference distribution...")
+    P, ixs, edges = calculate_reference_distributions(pos)
+    P_labels = labels[ixs]  # Labels for each pair
+
+    # Select file to save to
     fname_qtm = qtm.file.get_path()
     fname_npz = os.path.splitext(fname_qtm)[0] + ".npz"
     fname_npz = qtm.gui.dialog.show_save_file_dialog("Save reference distribution", 
@@ -13,11 +48,19 @@ def gui_generate_reference_distribution():
                                                      os.path.dirname(fname_npz))
     if not fname_npz:
         print("No file selected, aborting")
-        return    
-    generate_reference_distribution(fname_npz)
+        return
+    
+    # Save to npz file
+    np.savez(fname_npz, P=P, P_labels=P_labels, edges=edges, labels=labels)
+    print(f"Saved to {fname_npz}.")
 
-def generate_reference_distribution(fname_npz):
-    print(f"Generating reference distribution and saving to {fname_npz}...")
+def gui_auto_label():
+    fname_npz = "Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S4.npz"
+    npz = np.load(fname_npz, allow_pickle=True)
+    P_ref = npz['P']
+    P_labels_ref = npz['P_labels']
+    edges = npz['edges']
+
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:
     distances = np.linalg.norm(co1 - co2, ord=2, axis=0)
@@ -59,3 +102,22 @@ def calculate_reference_distributions(
             pair_index += 1
     return P, ixs, edges
 
+
+def get_positions(ids):
+    # First pass: figure out num_frames from the first trajectory
+    first_series = qtm.data.series._3d.get_samples(ids[0])
+    num_frames = len(first_series)
+    num_traj = len(ids)
+
+    # Allocate array
+    pos = np.full((num_traj, 3, num_frames), np.nan, dtype=float)
+
+    # Second pass: fill data array
+    for ti, id in enumerate(ids):
+        series = qtm.data.series._3d.get_samples(id)
+        # Fill in positions frame by frame
+        for fj, f in enumerate(series):
+            if f is not None and f.get("position") is not None:
+                pos[ti, :, fj] = f["position"]
+
+    return pos
