@@ -161,3 +161,62 @@ def ungroup_trajectories():
             part_count -= 1
     if filled_count > 0:
         print(f"Deleted {filled_count} gap-filled parts.")
+
+
+import numpy as np
+
+def guess_best_label_for_trajectory(
+    co: np.ndarray,                 # shape: (num_traj, 3, num_frames)
+    labels: np.ndarray,             # shape: (num_traj,), dtype str/object
+    labels_ref: np.ndarray,         # candidate labels to try, shape: (K,)
+    edges: np.ndarray,              # histogram edges, shape: (num_bins+1,)
+    P: np.ndarray,                  # reference distributions, shape: (num_pairs, num_bins)
+    P_labels: np.ndarray,           # pair labels for P, shape: (num_pairs, 2), dtype str/object
+    ix_sel: int,                    # selected trajectory index (e.g., from find_longest_trajectory)
+    b_unlabeled: np.ndarray,        # boolean mask of unlabeled trajectories, shape: (num_traj,)
+    calculate_distribution,         # function: (co1, co2, edges) -> (num_bins,)
+    distribution_similarity_score,  # function: (P1, P2) -> float
+):
+    candidate_labels = labels_ref
+    score_m = np.full((len(candidate_labels),), np.nan, dtype=float)
+
+    for iGuess, cand in enumerate(candidate_labels):
+        b_compare = (~b_unlabeled) & (~np.isin(labels, cand))
+        n_compare = int(np.sum(b_compare))
+
+        if n_compare == 0:
+            score_m[iGuess] = np.nan
+            continue
+
+        co_compare = co[b_compare, :, :]                 # (n_compare, 3, num_frames)
+        labels_compare = np.asarray(labels[b_compare])   # (n_compare,)
+
+        scores = np.full((n_compare,), np.nan, dtype=float)
+        co_sel = np.squeeze(co[ix_sel, :, :])            # (3, num_frames)
+
+        for iP in range(n_compare):
+            P2 = calculate_distribution(co_sel, np.squeeze(co_compare[iP, :, :]), edges)
+
+            lbl_other = labels_compare[iP]
+            # Find reference pair row where both labels appear in the row (order-insensitive)
+            mask = ((P_labels[:, 0] == cand) | (P_labels[:, 1] == cand)) & \
+                   ((P_labels[:, 0] == lbl_other) | (P_labels[:, 1] == lbl_other))
+
+            ix_ref = np.flatnonzero(mask)
+            if ix_ref.size == 0:
+                continue  # no matching reference; leave as NaN
+
+            scores[iP] = distribution_similarity_score(P2, P[ix_ref[0], :])
+
+        valid = ~np.isnan(scores)
+        score_m[iGuess] = np.mean(scores[valid]) if np.any(valid) else np.nan
+
+    # Evaluate: sort descending
+    sort_ix = np.argsort(-score_m)  # indices into candidate_labels
+    best_score = score_m[sort_ix[0]] if score_m.size > 0 else np.nan
+    if score_m.size > 1 and np.isfinite(score_m[sort_ix[1]]):
+        contrast = best_score / score_m[sort_ix[1]]
+    else:
+        contrast = np.nan
+
+    return best_score, contrast, score_m, sort_ix
