@@ -60,6 +60,24 @@ def gui_auto_label():
     P_ref = npz['P']
     P_labels_ref = npz['P_labels']
     edges = npz['edges']
+    labels_ref = npz['labels']
+    print(f"Loaded reference distribution from {fname_npz}.")
+
+    # Ungroup trajectories to single parts and delete gap-filled parts
+    ungroup_trajectories()
+
+    # Sort on trajectory length (descending)
+    ids_unlabeled = get_unlabeled_marker_ids()
+    counts = np.array([
+        qtm.data.series._3d.get_sample_count(id)
+        for id in ids_unlabeled
+    ], dtype=int)
+    order = np.argsort(-counts)              # indices sorted by descending count
+    sorted_ids = np.array(ids_unlabeled)[order]
+    sorted_counts = counts[order]
+    if sorted_counts[0]<100:
+        print('Only short trajectories.')
+        return
 
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:
@@ -121,3 +139,25 @@ def get_positions(ids):
                 pos[ti, :, fj] = f["position"]
 
     return pos
+
+
+def ungroup_trajectories():
+## Split all unidentified trajectories into single parts and delete gap-filled parts
+    id_unlabeled = get_unlabeled_marker_ids()
+    filled_count = 0
+    for marker_id in id_unlabeled:
+        part_count = qtm.data.object.trajectory.get_part_count(marker_id)
+        while part_count > 0:
+            # Get the first part of the trajectory
+            part = qtm.data.object.trajectory.get_part(marker_id, 0)
+            if part['type'] == "filled":
+                qtm.data.object.trajectory.delete_parts(marker_id, [0])  # delete filled part
+                filled_count += 1
+            else:
+                # Create a new trajectory for the part
+                new_traj = qtm.data.object.trajectory.add_trajectory()
+                # Move the part to the new trajectory
+                qtm.data.object.trajectory.move_parts(marker_id, new_traj, [0])
+            part_count -= 1
+    if filled_count > 0:
+        print(f"Deleted {filled_count} gap-filled parts.")
