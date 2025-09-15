@@ -20,19 +20,8 @@ def gui_generate_reference_distribution():
 
     # Get labeled trajectories
     ids = get_labeled_marker_ids()
-
-    # Remove prefixes from labels
-    labels = []
-    for id in ids:
-        # Remove prefix
-        label = qtm.data.object.trajectory.get_label(id)
-        before, sep, after = label.partition("_")
-        labels.append(after if sep else label) # Safe also if no prefix
-    labels = np.array(labels, dtype=object)    # Make it indexable
-
-    # Get positions
+    labels = get_labels_without_prefix(ids)
     pos = get_positions(ids)
-    #print(f"Combined position data shape: {pos.shape}")
 
     # Calculate reference distributions
     print(f"Calculating reference distribution...")
@@ -79,6 +68,13 @@ def gui_auto_label():
         print('Only short trajectories.')
         return
 
+    guess_label(
+        id_sel=int(sorted_ids[0]), 
+        P1=P_ref, 
+        P1_labels=P_labels_ref, 
+        edges=edges, 
+        labels_ref=labels_ref
+    )
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:
     distances = np.linalg.norm(co1 - co2, ord=2, axis=0)
@@ -121,24 +117,25 @@ def calculate_reference_distributions(
     return P, ixs, edges
 
 
-def get_positions(ids):
-    # First pass: figure out num_frames from the first trajectory
-    first_series = qtm.data.series._3d.get_samples(ids[0])
-    num_frames = len(first_series)
-    num_traj = len(ids)
+def get_positions(ids, series_range=None):
+    # Get number of frames for the whole recording if not given
+    if series_range is None:
+        series_range = qtm.gui.timeline.get_measured_range()
 
     # Allocate array
+    num_frames = series_range["end"]-series_range["start"]+1
+    num_traj = len(ids)
     pos = np.full((num_traj, 3, num_frames), np.nan, dtype=float)
 
-    # Second pass: fill data array
+    # Fill array
     for ti, id in enumerate(ids):
-        series = qtm.data.series._3d.get_samples(id)
+        series = qtm.data.series._3d.get_samples(id, series_range)
         # Fill in positions frame by frame
         for fj, f in enumerate(series):
             if f is not None and f.get("position") is not None:
                 pos[ti, :, fj] = f["position"]
 
-    return pos
+    return pos # shape: (num_traj, 3, num_frames)
 
 
 def ungroup_trajectories():
@@ -162,57 +159,93 @@ def ungroup_trajectories():
     if filled_count > 0:
         print(f"Deleted {filled_count} gap-filled parts.")
 
+def get_prefix():
+    ids = get_labeled_marker_ids()
+    label = qtm.data.object.trajectory.get_label(ids[0])
+    before, sep, after = label.partition("_")
+    return before if sep else ""
 
-import numpy as np
+def get_labels_without_prefix(ids):
+    # Remove prefixes from labels
+    labels = []
+    for id in ids:
+        # Remove prefix
+        label = qtm.data.object.trajectory.get_label(id)
+        before, sep, after = label.partition("_")
+        labels.append(after if sep else label) # Safe also if no prefix
+    labels = np.array(labels, dtype=object)    # Make it indexable
+    return labels
 
-def guess_best_label_for_trajectory(
-    co: np.ndarray,                 # shape: (num_traj, 3, num_frames)
-    labels: np.ndarray,             # shape: (num_traj,), dtype str/object
+def guess_label(
     labels_ref: np.ndarray,         # candidate labels to try, shape: (K,)
     edges: np.ndarray,              # histogram edges, shape: (num_bins+1,)
-    P: np.ndarray,                  # reference distributions, shape: (num_pairs, num_bins)
-    P_labels: np.ndarray,           # pair labels for P, shape: (num_pairs, 2), dtype str/object
-    ix_sel: int,                    # selected trajectory index (e.g., from find_longest_trajectory)
-    b_unlabeled: np.ndarray,        # boolean mask of unlabeled trajectories, shape: (num_traj,)
-    calculate_distribution,         # function: (co1, co2, edges) -> (num_bins,)
-    distribution_similarity_score,  # function: (P1, P2) -> float
+    P1: np.ndarray,                  # reference distributions, shape: (num_pairs, num_bins)
+    P1_labels: np.ndarray,           # pair labels for P1, shape: (num_pairs, 2), dtype str/object
+    id_sel: int,                    # selected trajectory index (e.g., from find_longest_trajectory)
 ):
-    candidate_labels = labels_ref
+    
+    # Get range of selected trajectory
+    series_range = qtm.data.series._3d.get_sample_range(id_sel)
+    num_frames = series_range["end"]-series_range["start"]+1
+
+    # Get positions of selected trajectory
+    pos_sel = np.full((3, num_frames), np.nan, dtype=float)
+    series = qtm.data.series._3d.get_samples(id_sel, series_range)
+    # Fill in positions frame by frame
+    for fj, f in enumerate(series):
+        if f is not None and f.get("position") is not None:
+            pos_sel[:, fj] = f["position"]
+    
+    # Get ids for all reference labels
+    prefix = get_prefix()
+    #ids_ref = np.array([
+    #    qtm.data.object.trajectory.find_trajectory(prefix + "_" + label)
+    #    for label in labels_ref
+    #], dtype=int)
+
+    ids_ref = [
+        qtm.data.object.trajectory.find_trajectory(prefix + "_" + label)
+        for label in labels_ref
+    ]
+
+    # Get positions for all reference trajectories
+    pos_ref = get_positions(ids_ref, series_range)
+
+    # Get candidates:
+    ids_labeled = get_labeled_marker_ids()
+
+    candidate_labels = labels_ref   # Try all possible labels
     score_m = np.full((len(candidate_labels),), np.nan, dtype=float)
 
     for iGuess, cand in enumerate(candidate_labels):
-        b_compare = (~b_unlabeled) & (~np.isin(labels, cand))
-        n_compare = int(np.sum(b_compare))
+        # Compare selected trajectory to all other labeled trajectories
+        b_compare = ~np.isin(labels_ref, cand)
+        n_compare = np.sum(b_compare)
 
-        if n_compare == 0:
-            score_m[iGuess] = np.nan
-            continue
-
-        co_compare = co[b_compare, :, :]                 # (n_compare, 3, num_frames)
-        labels_compare = np.asarray(labels[b_compare])   # (n_compare,)
+        pos_compare = pos_ref[b_compare, :, :]                 # (n_compare, 3, num_frames)
+        labels_compare = np.asarray(labels_ref[b_compare])   # (n_compare,)
 
         scores = np.full((n_compare,), np.nan, dtype=float)
-        co_sel = np.squeeze(co[ix_sel, :, :])            # (3, num_frames)
-
         for iP in range(n_compare):
-            P2 = calculate_distribution(co_sel, np.squeeze(co_compare[iP, :, :]), edges)
+            P2 = calculate_distribution(pos_sel, np.squeeze(pos_compare[iP, :, :]), edges)
 
             lbl_other = labels_compare[iP]
             # Find reference pair row where both labels appear in the row (order-insensitive)
-            mask = ((P_labels[:, 0] == cand) | (P_labels[:, 1] == cand)) & \
-                   ((P_labels[:, 0] == lbl_other) | (P_labels[:, 1] == lbl_other))
+            mask = ((P1_labels[:, 0] == cand) | (P1_labels[:, 1] == cand)) & \
+                   ((P1_labels[:, 0] == lbl_other) | (P1_labels[:, 1] == lbl_other))
 
             ix_ref = np.flatnonzero(mask)
             if ix_ref.size == 0:
                 continue  # no matching reference; leave as NaN
 
-            scores[iP] = distribution_similarity_score(P2, P[ix_ref[0], :])
+            scores[iP] = distribution_similarity_score(P2, P1[ix_ref[0], :])
 
         valid = ~np.isnan(scores)
         score_m[iGuess] = np.mean(scores[valid]) if np.any(valid) else np.nan
 
     # Evaluate: sort descending
     sort_ix = np.argsort(-score_m)  # indices into candidate_labels
+    print(candidate_labels[sort_ix])
     best_score = score_m[sort_ix[0]] if score_m.size > 0 else np.nan
     if score_m.size > 1 and np.isfinite(score_m[sort_ix[1]]):
         contrast = best_score / score_m[sort_ix[1]]
