@@ -251,10 +251,10 @@ def label_unlabeled_trajectories(
     labels_ref: np.ndarray,
     min_len: int = 20,
     max_outer_iters: int = 1000,
+    min_score: float = 0.001,
 ):
-    prev_unlabeled = None
-    outer_iters = 0
 
+    outer_iters = 0
     while True:
         outer_iters += 1
         if outer_iters > max_outer_iters:
@@ -262,7 +262,13 @@ def label_unlabeled_trajectories(
             break
 
         # Get all unlabeled trajectories
-        ids_unlabeled = get_unlabeled_marker_ids()
+        #ids_unlabeled = get_unlabeled_marker_ids()
+        ids_unlabeled = [
+            tid for tid in get_unlabeled_marker_ids()
+            if not qtm.data.object.trajectory.get_is_discarded(tid)
+        ]
+
+        
         n_unlabeled = len(ids_unlabeled)
         if n_unlabeled == 0:
             print("No unlabeled trajectories left.")
@@ -297,9 +303,12 @@ def label_unlabeled_trajectories(
             edges=edges, 
             labels_ref=labels_ref
         )
-
+        if scores[0] < min_score:
+            print(f"Best guess score {scores[0]:.4f} below min_score {min_score:.4f}. Discarding.")
+            qtm.data.object.trajectory.set_is_discarded(id_sel, True)
+            continue
+            
         for label_guess, score in zip(labels_guess, scores):
-            print(f" {label_guess}: {score:.4f}")
             print(f"Guess: {label_guess} (score {score:.4f})")
 
             # Find or create the target trajectory
@@ -326,9 +335,6 @@ def label_unlabeled_trajectories(
             break
         else:
             raise RuntimeError("No suitable guess found, stopping.")
-
-        # Update progress guard
-        prev_unlabeled = n_unlabeled
 
 
 def resolve_overlaps_into_target(
