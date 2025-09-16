@@ -61,8 +61,8 @@ def gui_auto_label():
         P_labels_ref=P_labels_ref,
         edges=edges,
         labels_ref=labels_ref,
-    )    
-    
+        min_len=20,
+    )
 
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:
@@ -171,10 +171,12 @@ def guess_label(
     P1: np.ndarray,                  # reference distributions, shape: (num_pairs, num_bins)
     P1_labels: np.ndarray,           # pair labels for P1, shape: (num_pairs, 2), dtype str/object
     id_sel: int,                    # selected trajectory index (e.g., from find_longest_trajectory)
+    series_range: dict = None       # optional range to use instead of full range
 ):
     
     # Get range of selected trajectory
-    series_range = qtm.data.series._3d.get_sample_range(id_sel)
+    if series_range is None:
+        series_range = qtm.data.series._3d.get_sample_range(id_sel)
     num_frames = series_range["end"]-series_range["start"]+1
 
     # Get positions of selected trajectory
@@ -249,7 +251,6 @@ def label_unlabeled_trajectories(
     labels_ref: np.ndarray,
     min_len: int = 20,
     max_outer_iters: int = 1000,
-    max_overlap_iters: int = 1000,
 ):
     prev_unlabeled = None
     outer_iters = 0
@@ -290,54 +291,129 @@ def label_unlabeled_trajectories(
 
         # Guess label
         labels_guess, scores, contrast = guess_label(
-            id_sel=id_sel, P1=P_ref, P1_labels=P_labels_ref, edges=edges, labels_ref=labels_ref
+            id_sel=id_sel, 
+            P1=P_ref, 
+            P1_labels=P_labels_ref, 
+            edges=edges, 
+            labels_ref=labels_ref
         )
-        label_guess = labels_guess[0]
-        print(f"Best guess: {label_guess} (score {scores[0]:.4f}, contrast {contrast:.4f})")
 
-        # Find or create the target trajectory
-        id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + label_guess)
-        if id_guess is None:
-            raise RuntimeError(f"Could not find trajectory for guessed label {label_guess}.")
+        for label_guess, score in zip(labels_guess, scores):
+            print(f" {label_guess}: {score:.4f}")
+            print(f"Guess: {label_guess} (score {score:.4f})")
 
-        # Unlabel/move overlapping parts out of the guessed trajectory
-        parts = qtm.data.series._3d.get_sample_ranges(id_guess) or []
-        if parts:
-            series_range = qtm.data.series._3d.get_sample_range(id_sel)
-            if series_range is None:
-                print("Selected trajectory has no range; skipping overlap resolution.")
-            else:
-                overlap_iters = 0
-                while True:
-                    overlap_iters += 1
-                    if overlap_iters > max_overlap_iters:
-                        print("Stopping overlap resolution: reached max_overlap_iters (safety).")
-                        break
+            # Find or create the target trajectory
+            id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + label_guess)
+            if id_guess is None:
+                raise RuntimeError(f"Could not find trajectory for guessed label {label_guess}.")
 
-                    parts = qtm.data.series._3d.get_sample_ranges(id_guess) or []
-                    print(f"Checking {len(parts)} existing parts in {label_guess} for overlaps...")
+            # Unlabel/move overlapping parts out of the guessed trajectory
+            resolved = resolve_overlaps_into_target(
+                id_sel=id_sel,
+                id_target=id_guess,
+                P_ref=P_ref,
+                P_labels_ref=P_labels_ref,
+                edges=edges,
+                labels_ref=labels_ref,
+            )
+            if not resolved:
+                print("Existing part fits better, trying next guess...")
+                continue
 
-                    first_idx = next(
-                        (
-                            i for i, part in enumerate(parts)
-                            if not (part['end'] < series_range['start'] or part['start'] > series_range['end'])
-                        ),
-                        None
-                    )
-                    if first_idx is None:
-                        print("Check passed (no overlaps).")
-                        break
-
-                    print(f"Existing overlapping part: {parts[first_idx]['start']}-{parts[first_idx]['end']}")
-                    print(f"Candidate part: {series_range['start']}-{series_range['end']}")
-                    # Create a new trajectory for the overlapping part and move it out
-                    new_traj = qtm.data.object.trajectory.add_trajectory()
-                    qtm.data.object.trajectory.move_parts(id_guess, new_traj, [first_idx])
-                    print("Unlabeled the overlapping part.")
-
-        # Finally, move the selected unlabeled trajectory into the guessed one
-        qtm.data.object.trajectory.move_parts(id_sel, id_guess)
-        print(f"Moved candidate part to {label_guess}.\n")
+            # Finally, move the selected unlabeled trajectory into the guessed one
+            qtm.data.object.trajectory.move_parts(id_sel, id_guess)
+            print(f"Moved candidate part to {label_guess}.\n")
+            break
+        else:
+            raise RuntimeError("No suitable guess found, stopping.")
 
         # Update progress guard
         prev_unlabeled = n_unlabeled
+
+
+def resolve_overlaps_into_target(
+    id_sel: int,
+    id_target: int,
+    max_overlap_iters: int = 1000,
+    P_ref: np.ndarray = None,
+    P_labels_ref: np.ndarray = None,
+    edges: np.ndarray = None,
+    labels_ref: np.ndarray = None,
+) -> int:
+    """
+    For the selected trajectory `id_sel`, remove any overlapping parts that currently
+    exist in the target labeled trajectory `id_target` by moving those overlapping
+    parts out to newly created trajectories. Returns the number of parts moved.
+
+    Overlap criterion: two closed intervals [start, end] overlap if not
+    (end1 < start2 or start1 > end2).
+    """
+    success = False
+
+    # Range of the candidate part we want to insert
+    series_range = qtm.data.series._3d.get_sample_range(id_sel)
+    if series_range is None:
+        print("Selected trajectory has no range; skipping overlap resolution.")
+        return success
+
+    overlap_iters = 0
+    while True:
+        overlap_iters += 1
+        if overlap_iters > max_overlap_iters:
+            print("Stopping overlap resolution: reached max_overlap_iters (safety).")
+            success = False
+            break
+
+        parts = qtm.data.series._3d.get_sample_ranges(id_target) or []
+        print(f"Checking {len(parts)} existing parts in for overlaps...")
+
+        # Find first overlapping part index
+        first_idx = next(
+            (
+                i for i, part in enumerate(parts)
+                if not (part['end'] < series_range['start'] or part['start'] > series_range['end'])
+            ),
+            None
+        )
+
+        if first_idx is None:
+            print("Check passed (no overlaps).")
+            success = True
+            break
+
+        print(f"Existing overlapping part: {parts[first_idx]['start']}-{parts[first_idx]['end']}")
+        print(f"Candidate part: {series_range['start']}-{series_range['end']}")
+
+        # Check which part fits better: the existing one or the candidate
+        labels_guess1, scores1, contrast1 = guess_label(
+            id_sel=id_sel, 
+            P1=P_ref, 
+            P1_labels=P_labels_ref, 
+            edges=edges, 
+            labels_ref=labels_ref
+        )
+        labels_guess2, scores2, contrast2 = guess_label(
+            id_sel=id_target,
+            series_range=parts[first_idx], 
+            P1=P_ref, 
+            P1_labels=P_labels_ref, 
+            edges=edges, 
+            labels_ref=labels_ref
+        )
+        print(f"Candidate part best guess: {labels_guess1[0]} (score {scores1[0]:.4f}, contrast {contrast1:.4f})")
+        print(f"Existing part best guess: {labels_guess2[0]} (score {scores2[0]:.4f}, contrast {contrast2:.4f})")
+
+        if scores1[0] > scores2[0]:
+            # Create a new trajectory and move the conflicting part out of the target
+            new_traj = qtm.data.object.trajectory.add_trajectory()
+            qtm.data.object.trajectory.move_parts(id_target, new_traj, [first_idx])
+            print("Unlabeled the overlapping part.")
+        else:
+            print("Keeping the existing part, skipping overlap resolution.")
+            for label, score in zip(labels_guess1, scores1):
+                print(f" {label}: {score:.4f}")
+            success = False
+            break
+
+    return success
+
