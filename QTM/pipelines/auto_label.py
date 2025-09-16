@@ -29,8 +29,6 @@ def gui_generate_reference_distribution():
     P_labels = labels[ixs]  # Labels for each pair
 
     # Select file to save to
-    fname_qtm = qtm.file.get_path()
-    fname_npz = os.path.splitext(fname_qtm)[0] + ".npz"
     fname_npz = qtm.gui.dialog.show_save_file_dialog("Save reference distribution", 
                                                      ["NumPy files (*.npz)"], 
                                                      os.path.basename(fname_npz), 
@@ -49,10 +47,18 @@ def gui_auto_label():
     if qtm_version['major']<2025:
         print("Requires QTM 2025.1 or later.")
         return
+    
+    # Select reference distribution file
+    fname_npz = qtm.gui.dialog.show_open_file_dialog(
+        "Load reference distribution", 
+        ["NumPy files (*.npz)"])
+    if not fname_npz:
+        print("No file selected, aborting")
+        return
 
     # Load reference distribution
-    fname_npz = "Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S4.npz"
-    npz = np.load(fname_npz, allow_pickle=True)
+    #fname_npz = "Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S4.npz"
+    npz = np.load(fname_npz[0], allow_pickle=True)
     P_ref = npz['P']
     P_labels_ref = npz['P_labels']
     edges = npz['edges']
@@ -67,7 +73,7 @@ def gui_auto_label():
         edges=edges,
         labels_ref=labels_ref,
     )
-    
+
     # Ungroup unlabeled trajectories to single parts and delete gap-filled parts
     print("Labeling unlabeled trajectories...")
     ungroup_unlabeled_trajectories()
