@@ -55,26 +55,63 @@ def gui_auto_label():
     # Ungroup trajectories to single parts and delete gap-filled parts
     ungroup_trajectories()
 
-    # Sort on trajectory length (descending)
+    # Sort on trajectory length (we want to start with the longest trajectory)
     ids_unlabeled = get_unlabeled_marker_ids()
     counts = np.array([
         qtm.data.series._3d.get_sample_count(id)
         for id in ids_unlabeled
     ], dtype=int)
-    order = np.argsort(-counts)              # indices sorted by descending count
+    order = np.argsort(-counts)     # Indices sorted by descending count
     sorted_ids = np.array(ids_unlabeled)[order]
     sorted_counts = counts[order]
     if sorted_counts[0]<100:
         print('Only short trajectories.')
         return
 
-    guess_label(
-        id_sel=int(sorted_ids[0]), 
+    # Guess label
+    id_sel = int(sorted_ids[0]) # Just try the longest trajectory for now
+    labels_guess, scores, contrast = guess_label(
+        id_sel=id_sel, 
         P1=P_ref, 
         P1_labels=P_labels_ref, 
         edges=edges, 
         labels_ref=labels_ref
     )
+    id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + labels_guess[0])
+    print(f"Best guess: {labels_guess[0]} (score {scores[0]:.4f}, contrast {contrast:.4f})")
+    #for label, score in zip(labels_guess, scores):
+    #    print(f"  {label}: {score:.4f}")
+    
+    # Check if trajectory is occupied by other parts
+    parts = qtm.data.series._3d.get_sample_ranges(id_guess)
+    if parts:
+        series_range = qtm.data.series._3d.get_sample_range(id_sel)
+        check_passed = False
+        while not check_passed:
+            parts = qtm.data.series._3d.get_sample_ranges(id_guess)
+            print(f"Checking {len(parts)} existing parts in {labels_guess[0]}...")
+            first_idx = next(
+                (i for i, part in enumerate(parts)
+                 if not (part['end'] < series_range['start'] or part['start'] > series_range['end'])),
+                None
+            )
+            if first_idx is None:
+                check_passed = True
+                print("Check passed.")
+            else:
+                print(f"Overlapping part: {parts[first_idx]['start']}-{parts[first_idx]['end']}")
+                print(f"New part: {series_range['start']}-{series_range['end']}")
+                # Create a new trajectory for the part
+                new_traj = qtm.data.object.trajectory.add_trajectory()
+                # Move the part to the new trajectory
+                qtm.data.object.trajectory.move_parts(id_guess, new_traj, [first_idx])
+                print("Unlabeled the overlapping part.")
+    
+    # Set label
+    qtm.data.object.trajectory.move_parts(id_sel, id_guess)
+    print(f"Moved part to {labels_guess[0]}.")
+    
+
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:
     distances = np.linalg.norm(co1 - co2, ord=2, axis=0)
@@ -157,7 +194,7 @@ def ungroup_trajectories():
                 qtm.data.object.trajectory.move_parts(marker_id, new_traj, [0])
             part_count -= 1
     if filled_count > 0:
-        print(f"Deleted {filled_count} gap-filled parts.")
+        print(f"Deleted {filled_count} unlabeled, gap-filled parts.")
 
 def get_prefix():
     ids = get_labeled_marker_ids()
@@ -198,11 +235,8 @@ def guess_label(
     
     # Get ids for all reference labels
     prefix = get_prefix()
-    #ids_ref = np.array([
-    #    qtm.data.object.trajectory.find_trajectory(prefix + "_" + label)
-    #    for label in labels_ref
-    #], dtype=int)
 
+    # Add prefix to reference labels
     ids_ref = [
         qtm.data.object.trajectory.find_trajectory(prefix + "_" + label)
         for label in labels_ref
@@ -211,45 +245,46 @@ def guess_label(
     # Get positions for all reference trajectories
     pos_ref = get_positions(ids_ref, series_range)
 
-    # Get candidates:
-    ids_labeled = get_labeled_marker_ids()
+    # Select candidates
+    candidate_labels = labels_ref # Now we try all possible markers, but could be restricted to only missing ones
 
-    candidate_labels = labels_ref   # Try all possible labels
+    # Calculate scores for all candidates
     score_m = np.full((len(candidate_labels),), np.nan, dtype=float)
-
     for iGuess, cand in enumerate(candidate_labels):
-        # Compare selected trajectory to all other labeled trajectories
+        # Select trajectories to compare to (all except the candidate itself)
         b_compare = ~np.isin(labels_ref, cand)
         n_compare = np.sum(b_compare)
-
-        pos_compare = pos_ref[b_compare, :, :]                 # (n_compare, 3, num_frames)
+        pos_compare = pos_ref[b_compare, :, :]               # (n_compare, 3, num_frames)
         labels_compare = np.asarray(labels_ref[b_compare])   # (n_compare,)
 
+        # Calculate similarity scores for all marker pairs
         scores = np.full((n_compare,), np.nan, dtype=float)
         for iP in range(n_compare):
+            # Calculate distance distribution
             P2 = calculate_distribution(pos_sel, np.squeeze(pos_compare[iP, :, :]), edges)
 
-            lbl_other = labels_compare[iP]
-            # Find reference pair row where both labels appear in the row (order-insensitive)
+            # Find reference pair (row where both labels appear in the row, order-insensitive)
             mask = ((P1_labels[:, 0] == cand) | (P1_labels[:, 1] == cand)) & \
-                   ((P1_labels[:, 0] == lbl_other) | (P1_labels[:, 1] == lbl_other))
-
+                   ((P1_labels[:, 0] == labels_compare[iP]) | (P1_labels[:, 1] == labels_compare[iP]))
             ix_ref = np.flatnonzero(mask)
-            if ix_ref.size == 0:
-                continue  # no matching reference; leave as NaN
+            assert ix_ref.size == 1, "Could not find unique reference pair."
 
+            # Calculate similarity score
             scores[iP] = distribution_similarity_score(P2, P1[ix_ref[0], :])
 
-        valid = ~np.isnan(scores)
-        score_m[iGuess] = np.mean(scores[valid]) if np.any(valid) else np.nan
+        # Average score for this candidate
+        score_m[iGuess] = np.nanmean(scores)
 
-    # Evaluate: sort descending
-    sort_ix = np.argsort(-score_m)  # indices into candidate_labels
-    print(candidate_labels[sort_ix])
+    # Order candidates by score
+    sort_ix = np.argsort(-score_m)  # Indices into candidate_labels, sorted by descending score
+    ordered_labels = candidate_labels[sort_ix]
+    ordered_scores = score_m[sort_ix]
+    
+    # Calculate contrast (best/second-best)
     best_score = score_m[sort_ix[0]] if score_m.size > 0 else np.nan
     if score_m.size > 1 and np.isfinite(score_m[sort_ix[1]]):
         contrast = best_score / score_m[sort_ix[1]]
     else:
         contrast = np.nan
 
-    return best_score, contrast, score_m, sort_ix
+    return ordered_labels, ordered_scores, contrast
