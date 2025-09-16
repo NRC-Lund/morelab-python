@@ -52,64 +52,16 @@ def gui_auto_label():
     labels_ref = npz['labels']
     print(f"Loaded reference distribution from {fname_npz}.")
 
-    # Ungroup trajectories to single parts and delete gap-filled parts
-    ungroup_trajectories()
+    # Ungroup unlabeled trajectories to single parts and delete gap-filled parts
+    ungroup_unlabeled_trajectories()
 
-    # Sort on trajectory length (we want to start with the longest trajectory)
-    ids_unlabeled = get_unlabeled_marker_ids()
-    counts = np.array([
-        qtm.data.series._3d.get_sample_count(id)
-        for id in ids_unlabeled
-    ], dtype=int)
-    order = np.argsort(-counts)     # Indices sorted by descending count
-    sorted_ids = np.array(ids_unlabeled)[order]
-    sorted_counts = counts[order]
-    if sorted_counts[0]<100:
-        print('Only short trajectories.')
-        return
-
-    # Guess label
-    id_sel = int(sorted_ids[0]) # Just try the longest trajectory for now
-    labels_guess, scores, contrast = guess_label(
-        id_sel=id_sel, 
-        P1=P_ref, 
-        P1_labels=P_labels_ref, 
-        edges=edges, 
-        labels_ref=labels_ref
-    )
-    id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + labels_guess[0])
-    print(f"Best guess: {labels_guess[0]} (score {scores[0]:.4f}, contrast {contrast:.4f})")
-    #for label, score in zip(labels_guess, scores):
-    #    print(f"  {label}: {score:.4f}")
-    
-    # Check if trajectory is occupied by other parts
-    parts = qtm.data.series._3d.get_sample_ranges(id_guess)
-    if parts:
-        series_range = qtm.data.series._3d.get_sample_range(id_sel)
-        check_passed = False
-        while not check_passed:
-            parts = qtm.data.series._3d.get_sample_ranges(id_guess)
-            print(f"Checking {len(parts)} existing parts in {labels_guess[0]}...")
-            first_idx = next(
-                (i for i, part in enumerate(parts)
-                 if not (part['end'] < series_range['start'] or part['start'] > series_range['end'])),
-                None
-            )
-            if first_idx is None:
-                check_passed = True
-                print("Check passed.")
-            else:
-                print(f"Overlapping part: {parts[first_idx]['start']}-{parts[first_idx]['end']}")
-                print(f"New part: {series_range['start']}-{series_range['end']}")
-                # Create a new trajectory for the part
-                new_traj = qtm.data.object.trajectory.add_trajectory()
-                # Move the part to the new trajectory
-                qtm.data.object.trajectory.move_parts(id_guess, new_traj, [first_idx])
-                print("Unlabeled the overlapping part.")
-    
-    # Set label
-    qtm.data.object.trajectory.move_parts(id_sel, id_guess)
-    print(f"Moved part to {labels_guess[0]}.")
+    # Label unlabeled trajectories
+    label_unlabeled_trajectories(
+        P_ref=P_ref,
+        P_labels_ref=P_labels_ref,
+        edges=edges,
+        labels_ref=labels_ref,
+    )    
     
 
 
@@ -175,7 +127,7 @@ def get_positions(ids, series_range=None):
     return pos # shape: (num_traj, 3, num_frames)
 
 
-def ungroup_trajectories():
+def ungroup_unlabeled_trajectories():
 ## Split all unidentified trajectories into single parts and delete gap-filled parts
     id_unlabeled = get_unlabeled_marker_ids()
     filled_count = 0
@@ -288,3 +240,75 @@ def guess_label(
         contrast = np.nan
 
     return ordered_labels, ordered_scores, contrast
+
+
+def label_unlabeled_trajectories(
+        P_ref: np.ndarray,
+        P_labels_ref: np.ndarray,
+        edges: np.ndarray,
+        labels_ref: np.ndarray,
+):
+    while True:
+        # Get all unlabeled trajectories
+        ids_unlabeled = get_unlabeled_marker_ids()
+        if not ids_unlabeled:
+            print("No unlabeled trajectories left.")
+            break
+        print(f"{len(ids_unlabeled)} unlabeled trajectories left.")
+
+        # Sort on trajectory length (we want to start with the longest trajectory)
+        counts = np.array([
+            qtm.data.series._3d.get_sample_count(id)
+            for id in ids_unlabeled
+        ], dtype=int)
+        order = np.argsort(-counts)     # Indices sorted by descending count
+        sorted_ids = np.array(ids_unlabeled)[order]
+        sorted_counts = counts[order]
+
+        # Exit condition: stop if the longest unlabeled trajectory is too short
+        if sorted_counts[0]<20:
+            print('Only short trajectories left. Stopping')
+            break
+
+        # Guess label
+        id_sel = int(sorted_ids[0]) # Just try the longest trajectory for now
+        labels_guess, scores, contrast = guess_label(
+            id_sel=id_sel, 
+            P1=P_ref, 
+            P1_labels=P_labels_ref, 
+            edges=edges, 
+            labels_ref=labels_ref
+        )
+        id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + labels_guess[0])
+        print(f"Best guess: {labels_guess[0]} (score {scores[0]:.4f}, contrast {contrast:.4f})")
+        #for label, score in zip(labels_guess, scores):
+        #    print(f"  {label}: {score:.4f}")
+        
+        # Check if trajectory is occupied by other parts
+        parts = qtm.data.series._3d.get_sample_ranges(id_guess)
+        if parts:
+            series_range = qtm.data.series._3d.get_sample_range(id_sel)
+            check_passed = False
+            while not check_passed:
+                parts = qtm.data.series._3d.get_sample_ranges(id_guess)
+                print(f"Checking {len(parts)} existing parts in {labels_guess[0]}...")
+                first_idx = next(
+                    (i for i, part in enumerate(parts)
+                    if not (part['end'] < series_range['start'] or part['start'] > series_range['end'])),
+                    None
+                )
+                if first_idx is None:
+                    check_passed = True
+                    print("Check passed.")
+                else:
+                    print(f"Overlapping part: {parts[first_idx]['start']}-{parts[first_idx]['end']}")
+                    print(f"New part: {series_range['start']}-{series_range['end']}")
+                    # Create a new trajectory for the part
+                    new_traj = qtm.data.object.trajectory.add_trajectory()
+                    # Move the part to the new trajectory
+                    qtm.data.object.trajectory.move_parts(id_guess, new_traj, [first_idx])
+                    print("Unlabeled the overlapping part.")
+        
+        # Set label (move the selected trajectory into the guessed one)
+        qtm.data.object.trajectory.move_parts(id_sel, id_guess)
+        print(f"Moved part to {labels_guess[0]}.")
