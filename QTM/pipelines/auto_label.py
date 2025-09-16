@@ -44,6 +44,13 @@ def gui_generate_reference_distribution():
     print(f"Saved to {fname_npz}.")
 
 def gui_auto_label():
+    # Check QTM version
+    qtm_version = qtm.get_version()
+    if qtm_version['major']<2025:
+        print("Requires QTM 2025.1 or later.")
+        return
+
+    # Load reference distribution
     fname_npz = "Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S4.npz"
     npz = np.load(fname_npz, allow_pickle=True)
     P_ref = npz['P']
@@ -52,7 +59,17 @@ def gui_auto_label():
     labels_ref = npz['labels']
     print(f"Loaded reference distribution from {fname_npz}.")
 
+    # Relabel the labeled trajectories
+    print("Relabeling labeled trajectories...")
+    relabel_labeled_trajectories(
+        P_ref=P_ref,
+        P_labels_ref=P_labels_ref,
+        edges=edges,
+        labels_ref=labels_ref,
+    )
+    
     # Ungroup unlabeled trajectories to single parts and delete gap-filled parts
+    print("Labeling unlabeled trajectories...")
     ungroup_unlabeled_trajectories()
 
     # Label unlabeled trajectories
@@ -311,7 +328,7 @@ def label_unlabeled_trajectories(
         for label_guess, score in zip(labels_guess, scores):
             print(f"Guess: {label_guess} (score {score:.4f})")
 
-            # Find or create the target trajectory
+            # Find the target trajectory
             id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + label_guess)
             if id_guess is None:
                 raise RuntimeError(f"Could not find trajectory for guessed label {label_guess}.")
@@ -349,10 +366,7 @@ def resolve_overlaps_into_target(
     """
     For the selected trajectory `id_sel`, remove any overlapping parts that currently
     exist in the target labeled trajectory `id_target` by moving those overlapping
-    parts out to newly created trajectories. Returns the number of parts moved.
-
-    Overlap criterion: two closed intervals [start, end] overlap if not
-    (end1 < start2 or start1 > end2).
+    parts out to newly created trajectories.
     """
     success = False
 
@@ -423,3 +437,43 @@ def resolve_overlaps_into_target(
 
     return success
 
+
+def relabel_labeled_trajectories(
+    P_ref: np.ndarray,
+    P_labels_ref: np.ndarray,
+    edges: np.ndarray,
+    labels_ref: np.ndarray,
+    max_outer_iters: int = 1000,
+    min_score: float = 0.001,
+):
+    ids_labeled = get_labeled_marker_ids()
+    for idx_labeled, id_labeled in enumerate(ids_labeled):
+        print(f"Checking trajectory {idx_labeled+1}/{len(ids_labeled)}...")
+        label = qtm.data.object.trajectory.get_label(id_labeled)
+        label_noprefix = label.split("_",1)[1]  # Safe also if no prefix
+
+        parts = qtm.data.series._3d.get_sample_ranges(id_labeled)
+        print(f" {label} has {len(parts)} parts.")
+
+        idx_mismatch = []
+        for idx_part, part in enumerate(parts):
+            print(f"  Part {idx_part}: {part['start']}-{part['end']}")
+            # Guess label
+            labels_guess, scores, contrast = guess_label(
+                id_sel=id_labeled,
+                series_range=parts[idx_part],
+                P1=P_ref, 
+                P1_labels=P_labels_ref, 
+                edges=edges, 
+                labels_ref=labels_ref
+            )
+
+            # Compare the best guess with the current label
+            if labels_guess[0] != label_noprefix:
+                print(f"   Current label '{label_noprefix}' matches best guess '{labels_guess[0]}'.")
+                idx_mismatch.append(idx_part)
+
+        if len(idx_mismatch) > 0:
+            new_traj = qtm.data.object.trajectory.add_trajectory()
+            qtm.data.object.trajectory.move_parts(id_labeled, new_traj, idx_mismatch)
+            print("   Unlabeled the mismatching part.")
