@@ -55,7 +55,7 @@ import pipelines.shank_gap_fill_relational
 importlib.reload(pipelines.shank_gap_fill_relational) # Reload to clear cache.
 import pipelines.foot_gap_fill_relational
 importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
-from pipelines.auto_label import gui_generate_reference_distribution, gui_auto_label, gui_auto_label_selected_trajectories
+from pipelines.auto_label import gui_generate_reference_distribution, gui_auto_label, gui_auto_label_selected_trajectories, gui_remove_spikes
 importlib.reload(pipelines.auto_label) # Reload to clear cache.
 
 
@@ -75,7 +75,8 @@ def _setup_commands():
         ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
         ("Generate reference distribution", gui_generate_reference_distribution),
         ("Auto label", gui_auto_label),
-        ("Auto label selected trajectories", gui_auto_label_selected_trajectories)
+        ("Auto label selected trajectories", gui_auto_label_selected_trajectories),
+        ("Remove spikes and fill", gui_remove_spikes),
     ]
     for label, fn in cmds:
         qtm.gui.add_command(label)
@@ -101,6 +102,7 @@ def _setup_menu():
     add_menu_item(lmid, "Generate reference distribution", "Generate reference distribution")
     add_menu_item(lmid, "Auto label", "Auto label")
     add_menu_item(lmid, "Auto label selected trajectories", "Auto label selected trajectories")
+    add_menu_item(lmid, "Remove spikes and fill", "Remove spikes and fill")
 
 def add_menu():
     try:

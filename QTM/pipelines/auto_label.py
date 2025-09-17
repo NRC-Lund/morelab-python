@@ -29,6 +29,8 @@ def gui_generate_reference_distribution():
     P_labels = labels[ixs]  # Labels for each pair
 
     # Select file to save to
+    fname_qtm = qtm.file.get_path()
+    fname_npz = os.path.splitext(fname_qtm)[0] + ".npz"
     fname_npz = qtm.gui.dialog.show_save_file_dialog("Save reference distribution", 
                                                      ["NumPy files (*.npz)"], 
                                                      os.path.basename(fname_npz), 
@@ -42,7 +44,7 @@ def gui_generate_reference_distribution():
     print(f"Saved to {fname_npz}.")
 
 def gui_auto_label():
-    dubug = False
+    debug_flag = False
 
     # Check QTM version
     qtm_version = qtm.get_version()
@@ -51,7 +53,7 @@ def gui_auto_label():
         return
     
     # Select reference distribution file
-    if dubug:
+    if debug_flag:
         fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
     else:    
         fname_npz = qtm.gui.dialog.show_open_file_dialog(
@@ -94,7 +96,7 @@ def gui_auto_label():
 
 
 def gui_auto_label_selected_trajectories():
-    dubug = True
+    debug_flag = False
 
     # Check QTM version
     qtm_version = qtm.get_version()
@@ -103,7 +105,7 @@ def gui_auto_label_selected_trajectories():
         return
     
     # Select reference distribution file
-    if dubug:
+    if debug_flag:
         fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
     else:    
         fname_npz = qtm.gui.dialog.show_open_file_dialog(
@@ -154,6 +156,17 @@ def gui_auto_label_selected_trajectories():
                 labels_ref=labels_ref,
             )
 
+
+def gui_remove_spikes():
+    print("Removing spikes and filling gaps...")
+    ids = get_labeled_marker_ids()
+    
+    for idx, id in enumerate(ids):
+        label = qtm.data.object.trajectory.get_label(id)
+        pos = np.squeeze(get_positions([id]))
+        spikes = detect_spikes(pos, k=20.0, include_neighbor=True)
+        print(f"Detected {np.sum(spikes)} spikes in {label}.")
+        #print(np.flatnonzero(spikes))
 
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:
@@ -216,6 +229,53 @@ def get_positions(ids, series_range=None):
                 pos[ti, :, fj] = f["position"]
 
     return pos # shape: (num_traj, 3, num_frames)
+
+
+def detect_spikes(traj: np.ndarray, k: float = 6.0, include_neighbor: bool = False) -> np.ndarray:
+
+
+    N = traj.shape[1]
+    if N < 3:
+        # need at least 3 frames for a second-order diff
+        return np.zeros(N, dtype=bool)
+
+    # Δposition vectors between consecutive frames: shape (3, N-1)
+    dp = np.diff(traj, axis=1)
+
+    # speed per step: shape (N-1,)
+    speed = np.linalg.norm(dp, axis=0)
+
+    # Δspeed (equiv. conv with [-1, 1]): shape (N-2,)
+    ds = np.diff(speed)
+
+    # Robust thresholding on ds
+    med = np.nanmedian(ds)
+    mad = np.nanmedian(np.abs(ds - med))
+    if not np.isfinite(mad) or mad == 0:
+        mad = 1e-12
+    z = np.abs(ds - med) / (1.4826 * mad)  # ~|z-score| using MAD
+
+    kernel = np.ones(4, dtype=float)  # default boxcar length 7
+    k_used = kernel / kernel.sum()
+    z_eff = np.convolve(z, k_used, mode="same")
+    hits = z_eff > k
+
+
+
+#    hits = z > k                           # boolean (N-2,)
+
+    # Map Δspeed index i to frame i+1 (centered between steps i and i+1)
+    spikes = np.zeros(N, dtype=bool)
+    spikes[1:-1] = hits
+
+    if include_neighbor and hits.any():
+        # also mark neighbors around the centered frame
+        spikes[:-1] |= np.r_[False, hits]      # previous frame
+        spikes[1:]  |= np.r_[hits,  False]     # next frame
+
+    # Steps that involved NaNs produce NaN in speed/ds and won't trigger hits.
+    return spikes
+
 
 
 def ungroup_unlabeled_trajectories():
@@ -517,7 +577,7 @@ def resolve_overlaps_into_target(
         )
 
         if first_idx is None:
-            print("Check passed (no overlaps).")
+            print("No overlaps.")
             success = True
             break
 
