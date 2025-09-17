@@ -431,6 +431,7 @@ def label_all_unlabeled_trajectories(
 
     # Iteratively label the longest unlabeled trajectory
     outer_iters = 0
+    iters_n_unlabeled = []
     while True:
         outer_iters += 1
         if outer_iters > max_outer_iters:
@@ -446,14 +447,16 @@ def label_all_unlabeled_trajectories(
 
         
         n_unlabeled = len(ids_unlabeled)
+        iters_n_unlabeled.append(n_unlabeled)
         if n_unlabeled == 0:
             print("No unlabeled trajectories left.")
             break
         print(f"{n_unlabeled} unlabeled trajectories left.")
 
-        # Progress guard: if we didn't reduce the count last loop, warn
-        #if prev_unlabeled is not None and n_unlabeled >= prev_unlabeled:
-        #    print("Warning: unlabeled count did not decrease on last pass.")
+        # Check for stagnation
+        if len(iters_n_unlabeled) > 10 and iters_n_unlabeled[-9]<n_unlabeled+5:
+            print("Warning: unlabeled count did not decrease enough in the last 10 passes, stopping.")
+            break
 
         # Sort by length (desc)
         counts = np.array(
