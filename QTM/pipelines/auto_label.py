@@ -42,6 +42,8 @@ def gui_generate_reference_distribution():
     print(f"Saved to {fname_npz}.")
 
 def gui_auto_label():
+    dubug = False
+
     # Check QTM version
     qtm_version = qtm.get_version()
     if qtm_version['major']<2025:
@@ -49,21 +51,23 @@ def gui_auto_label():
         return
     
     # Select reference distribution file
-    fname_npz = qtm.gui.dialog.show_open_file_dialog(
-        "Load reference distribution", 
-        ["NumPy files (*.npz)"])
-    if not fname_npz:
-        print("No file selected, aborting")
-        return
+    if dubug:
+        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
+    else:    
+        fname_npz = qtm.gui.dialog.show_open_file_dialog(
+            "Load reference distribution", 
+            ["NumPy files (*.npz)"])
+        if not fname_npz:
+            print("No file selected, aborting")
+            return
 
     # Load reference distribution
-    #fname_npz = "Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S4.npz"
     npz = np.load(fname_npz[0], allow_pickle=True)
     P_ref = npz['P']
     P_labels_ref = npz['P_labels']
     edges = npz['edges']
     labels_ref = npz['labels']
-    print(f"Loaded reference distribution from {fname_npz}.")
+    print(f"Loaded reference distribution from {fname_npz[0]}.")
 
     # Relabel the labeled trajectories
     print("Relabeling labeled trajectories...")
@@ -85,6 +89,52 @@ def gui_auto_label():
         edges=edges,
         labels_ref=labels_ref,
         min_len=20,
+    )
+
+
+def gui_auto_label_selected_trajectories():
+    dubug = True
+
+    # Check QTM version
+    qtm_version = qtm.get_version()
+    if qtm_version['major']<2025:
+        print("Requires QTM 2025.1 or later.")
+        return
+    
+    # Select reference distribution file
+    if dubug:
+        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
+    else:    
+        fname_npz = qtm.gui.dialog.show_open_file_dialog(
+            "Load reference distribution", 
+            ["NumPy files (*.npz)"])
+        if not fname_npz:
+            print("No file selected, aborting")
+            return
+
+    # Load reference distribution
+    npz = np.load(fname_npz[0], allow_pickle=True)
+    P_ref = npz['P']
+    P_labels_ref = npz['P_labels']
+    edges = npz['edges']
+    labels_ref = npz['labels']
+    print(f"Loaded reference distribution from {fname_npz[0]}.")
+
+    # Get selected trajectories
+    ids_selected = qtm.gui.selection.get_selections("trajectory")
+    ids_selected = [item['id'] for item in ids_selected if 'id' in item]
+    if len(ids_selected) == 0:
+        print("No trajectories selected, aborting")
+        return
+    
+    # Relabel the labeled trajectories
+    print("Relabeling labeled trajectories...")
+    relabel_labeled_trajectories(
+        P_ref=P_ref,
+        P_labels_ref=P_labels_ref,
+        edges=edges,
+        labels_ref=labels_ref,
+        ids_labeled=ids_selected,
     )
 
 
@@ -170,6 +220,27 @@ def ungroup_unlabeled_trajectories():
             part_count -= 1
     if filled_count > 0:
         print(f"Deleted {filled_count} unlabeled, gap-filled parts.")
+
+
+def delete_gapfilled_parts(ids=None):
+    if ids is None:
+        ids = qtm.data.series._3d.get_series_ids()
+
+    # Delete all gap-filled parts
+    for id in ids:
+        label = qtm.data.object.trajectory.get_label(id)
+        gap_filled_parts = []
+        parts = qtm.data.object.trajectory.get_parts(id)
+        for part, item in enumerate(parts):
+            if item["type"] == "filled":
+                gap_filled_parts.append(part)
+        for part in reversed(gap_filled_parts):
+            qtm.data.object.trajectory.delete_parts(id, [part])
+            #print(f"part {part} was deleted from {label} due to being gap-filled")
+        if qtm.data.object.trajectory.get_part_count(id) == 0:
+            qtm.data.object.trajectory.delete_trajectory(id)
+            #print(f"trajectory {id} deleted as all parts were removed from it")
+
 
 def get_prefix():
     ids = get_labeled_marker_ids()
@@ -449,15 +520,29 @@ def relabel_labeled_trajectories(
     P_labels_ref: np.ndarray,
     edges: np.ndarray,
     labels_ref: np.ndarray,
+    ids_labeled: list = None,
+    min_len: int = 20,
     max_outer_iters: int = 1000,
     min_score: float = 0.001,
 ):
-    ids_labeled = get_labeled_marker_ids()
+    if ids_labeled is None:
+        ids_labeled = get_labeled_marker_ids()
+
+    # Delete gap-filled parts first
+    delete_gapfilled_parts(ids_labeled)
+
     for idx_labeled, id_labeled in enumerate(ids_labeled):
         print(f"Checking trajectory {idx_labeled+1}/{len(ids_labeled)}...")
+
+        # Delete gap-filled parts first
+#        qtm.gui.selection.set_selections([{"type": "trajectory", "id": id_labeled}])
+#        qtm.gui.send_command('delete_gapfilled_parts')
+
+        # Get label with and without prefix
         label = qtm.data.object.trajectory.get_label(id_labeled)
         label_noprefix = label.split("_",1)[1]  # Safe also if no prefix
 
+        # Check all parts of the trajectory
         parts = qtm.data.series._3d.get_sample_ranges(id_labeled)
         print(f" {label} has {len(parts)} parts.")
 
@@ -473,13 +558,13 @@ def relabel_labeled_trajectories(
                 edges=edges, 
                 labels_ref=labels_ref
             )
-
+            print(f"   Score={scores[0]:.4f}, contrast={contrast:.4f}")
             # Compare the best guess with the current label
             if labels_guess[0] != label_noprefix:
-                print(f"   Current label '{label_noprefix}' matches best guess '{labels_guess[0]}'.")
+                print(f"   Current label '{label_noprefix}' does not match the best guess '{labels_guess[0]}'.")
                 idx_mismatch.append(idx_part)
 
         if len(idx_mismatch) > 0:
             new_traj = qtm.data.object.trajectory.add_trajectory()
             qtm.data.object.trajectory.move_parts(id_labeled, new_traj, idx_mismatch)
-            print("   Unlabeled the mismatching part.")
+            print(f"  Unlabeled {len(idx_mismatch)} mismatching part(s).")
