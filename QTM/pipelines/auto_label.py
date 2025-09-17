@@ -68,6 +68,10 @@ def gui_auto_label():
     edges = npz['edges']
     labels_ref = npz['labels']
     print(f"Loaded reference distribution from {fname_npz[0]}.")
+    qtm.gui.message.add_message(
+        f"Loaded distribution {fname_npz[0]}", 
+        f"Loaded reference distribution from {fname_npz[0]}.", 
+        "info")
 
     # Relabel the labeled trajectories
     print("Relabeling labeled trajectories...")
@@ -78,12 +82,9 @@ def gui_auto_label():
         labels_ref=labels_ref,
     )
 
-    # Ungroup unlabeled trajectories to single parts and delete gap-filled parts
-    print("Labeling unlabeled trajectories...")
-    ungroup_unlabeled_trajectories()
-
     # Label unlabeled trajectories
-    label_unlabeled_trajectories(
+    print("Labeling unlabeled trajectories...")
+    label_all_unlabeled_trajectories(
         P_ref=P_ref,
         P_labels_ref=P_labels_ref,
         edges=edges,
@@ -127,15 +128,32 @@ def gui_auto_label_selected_trajectories():
         print("No trajectories selected, aborting")
         return
     
+    # Check if trajectories are labeled or unlabeled
+    ids_selected_labeled = [tid for tid in ids_selected if tid in get_labeled_marker_ids()]
+    ids_selected_unlabeled = [tid for tid in ids_selected if tid in get_unlabeled_marker_ids()]
+
     # Relabel the labeled trajectories
-    print("Relabeling labeled trajectories...")
-    relabel_labeled_trajectories(
-        P_ref=P_ref,
-        P_labels_ref=P_labels_ref,
-        edges=edges,
-        labels_ref=labels_ref,
-        ids_labeled=ids_selected,
-    )
+    if len(ids_selected_labeled) > 0:
+        print("Relabeling labeled trajectories...")
+        relabel_labeled_trajectories(
+            P_ref=P_ref,
+            P_labels_ref=P_labels_ref,
+            edges=edges,
+            labels_ref=labels_ref,
+            ids_labeled=ids_selected_labeled,
+        )
+
+    # Label unlabeled trajectories
+    if len(ids_selected_unlabeled) > 0:
+        for ids in ids_selected_unlabeled:
+            label_unlabeled_trajectory(
+                id_sel=ids,
+                P_ref=P_ref,
+                P_labels_ref=P_labels_ref,
+                edges=edges,
+                labels_ref=labels_ref,
+            )
+
 
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:
@@ -338,7 +356,7 @@ def guess_label(
     return ordered_labels, ordered_scores, contrast
 
 
-def label_unlabeled_trajectories(
+def label_all_unlabeled_trajectories(
     P_ref: np.ndarray,
     P_labels_ref: np.ndarray,
     edges: np.ndarray,
@@ -348,6 +366,10 @@ def label_unlabeled_trajectories(
     min_score: float = 0.001,
 ):
 
+    # Ungroup all unlabeled trajectories to single parts and delete gap-filled parts
+    ungroup_unlabeled_trajectories()
+
+    # Iteratively label the longest unlabeled trajectory
     outer_iters = 0
     while True:
         outer_iters += 1
@@ -389,46 +411,67 @@ def label_unlabeled_trajectories(
         # Pick the longest unlabeled trajectory
         id_sel = int(sorted_ids[0])
 
-        # Guess label
-        labels_guess, scores, contrast = guess_label(
-            id_sel=id_sel, 
-            P1=P_ref, 
-            P1_labels=P_labels_ref, 
-            edges=edges, 
-            labels_ref=labels_ref
+        label_unlabeled_trajectory(
+            id_sel=id_sel,
+            P_ref=P_ref,
+            P_labels_ref=P_labels_ref,
+            edges=edges,
+            labels_ref=labels_ref,
+            min_score=min_score,
         )
-        if scores[0] < min_score:
-            print(f"Best guess score {scores[0]:.4f} below min_score {min_score:.4f}. Discarding.")
-            qtm.data.object.trajectory.set_is_discarded(id_sel, True)
+
+
+def label_unlabeled_trajectory(
+    id_sel: int,
+    P_ref: np.ndarray,
+    P_labels_ref: np.ndarray,
+    edges: np.ndarray,
+    labels_ref: np.ndarray,
+    min_score: float = 0.001,
+):
+
+    # Guess label
+    labels_guess, scores, contrast = guess_label(
+        id_sel=id_sel, 
+        P1=P_ref, 
+        P1_labels=P_labels_ref, 
+        edges=edges, 
+        labels_ref=labels_ref
+    )
+    if scores[0] < min_score:
+        print(f"Best guess score {scores[0]:.4f} below min_score {min_score:.4f}. Discarding.")
+        qtm.data.object.trajectory.set_is_discarded(id_sel, True)
+        return
+        
+    for label_guess, score in zip(labels_guess, scores):
+        print(f"Guess: {label_guess} (score {score:.4f})")
+
+        # Find the target trajectory
+        id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + label_guess)
+        if id_guess is None:
+            raise RuntimeError(f"Could not find trajectory for guessed label {label_guess}.")
+
+        # Unlabel/move overlapping parts out of the guessed trajectory
+        resolved = resolve_overlaps_into_target(
+            id_sel=id_sel,
+            id_target=id_guess,
+            P_ref=P_ref,
+            P_labels_ref=P_labels_ref,
+            edges=edges,
+            labels_ref=labels_ref,
+        )
+        if not resolved:
+            print("Existing part fits better, trying next guess...")
             continue
-            
-        for label_guess, score in zip(labels_guess, scores):
-            print(f"Guess: {label_guess} (score {score:.4f})")
 
-            # Find the target trajectory
-            id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + label_guess)
-            if id_guess is None:
-                raise RuntimeError(f"Could not find trajectory for guessed label {label_guess}.")
+        # Finally, move the selected unlabeled trajectory into the guessed one
+        qtm.data.object.trajectory.move_parts(id_sel, id_guess)
+        print(f"Moved candidate part to {label_guess}.\n")
+        break
+    else:
+        raise RuntimeError("No suitable guess found, stopping.")
 
-            # Unlabel/move overlapping parts out of the guessed trajectory
-            resolved = resolve_overlaps_into_target(
-                id_sel=id_sel,
-                id_target=id_guess,
-                P_ref=P_ref,
-                P_labels_ref=P_labels_ref,
-                edges=edges,
-                labels_ref=labels_ref,
-            )
-            if not resolved:
-                print("Existing part fits better, trying next guess...")
-                continue
-
-            # Finally, move the selected unlabeled trajectory into the guessed one
-            qtm.data.object.trajectory.move_parts(id_sel, id_guess)
-            print(f"Moved candidate part to {label_guess}.\n")
-            break
-        else:
-            raise RuntimeError("No suitable guess found, stopping.")
+    return
 
 
 def resolve_overlaps_into_target(
@@ -462,7 +505,7 @@ def resolve_overlaps_into_target(
             break
 
         parts = qtm.data.series._3d.get_sample_ranges(id_target) or []
-        print(f"Checking {len(parts)} existing parts in for overlaps...")
+        print(f"Checking {len(parts)} existing parts for overlaps...")
 
         # Find first overlapping part index
         first_idx = next(
@@ -534,17 +577,14 @@ def relabel_labeled_trajectories(
     for idx_labeled, id_labeled in enumerate(ids_labeled):
         print(f"Checking trajectory {idx_labeled+1}/{len(ids_labeled)}...")
 
-        # Delete gap-filled parts first
-#        qtm.gui.selection.set_selections([{"type": "trajectory", "id": id_labeled}])
-#        qtm.gui.send_command('delete_gapfilled_parts')
-
         # Get label with and without prefix
         label = qtm.data.object.trajectory.get_label(id_labeled)
         label_noprefix = label.split("_",1)[1]  # Safe also if no prefix
 
         # Check all parts of the trajectory
         parts = qtm.data.series._3d.get_sample_ranges(id_labeled)
-        print(f" {label} has {len(parts)} parts.")
+        if label:
+            print(f" {label} has {len(parts)} parts.")
 
         idx_mismatch = []
         for idx_part, part in enumerate(parts):
