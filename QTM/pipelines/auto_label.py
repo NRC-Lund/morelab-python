@@ -74,6 +74,11 @@ def gui_auto_label_everything():
         f"Loaded distribution {fname_npz[0]}", 
         f"Loaded reference distribution from {fname_npz[0]}.", 
         "info")
+    
+    # Check that all reference labels are present
+    if not check_labels(labels_ref):
+        print("Not all reference labels are present, aborting.")
+        return
 
     # Relabel the labeled trajectories
     print("Relabeling labeled trajectories...")
@@ -127,6 +132,11 @@ def gui_auto_label_labeled():
         f"Loaded distribution {fname_npz[0]}", 
         f"Loaded reference distribution from {fname_npz[0]}.", 
         "info")
+    
+    # Check that all reference labels are present
+    if not check_labels(labels_ref):
+        print("Not all reference labels are present, aborting.")
+        return
 
     # Relabel the labeled trajectories
     print("Relabeling labeled trajectories...")
@@ -169,6 +179,11 @@ def gui_auto_label_unlabeled():
         f"Loaded distribution {fname_npz[0]}", 
         f"Loaded reference distribution from {fname_npz[0]}.", 
         "info")
+    
+    # Check that all reference labels are present
+    if not check_labels(labels_ref):
+        print("Not all reference labels are present, aborting.")
+        return
 
     # Label unlabeled trajectories
     print("Labeling unlabeled trajectories...")
@@ -209,6 +224,11 @@ def gui_auto_label_selected_trajectories():
     edges = npz['edges']
     labels_ref = npz['labels']
     print(f"Loaded reference distribution from {fname_npz[0]}.")
+
+    # Check that all reference labels are present
+    if not check_labels(labels_ref):
+        print("Not all reference labels are present, aborting.")
+        return
 
     # Get selected trajectories
     ids_selected = qtm.gui.selection.get_selections("trajectory")
@@ -317,6 +337,24 @@ def get_positions(ids, series_range=None):
                 pos[ti, :, fj] = f["position"]
 
     return pos # shape: (num_traj, 3, num_frames)
+
+
+def check_labels(labels_ref):
+    
+    # Get labels of all labeled trajectories
+    ids_labeled = get_labeled_marker_ids()
+    existing_labels = get_labels_without_prefix(ids_labeled)
+    
+    # Find which reference labels are missing
+    missing = [lbl for lbl in labels_ref if lbl not in existing_labels]
+
+    # Report
+    if missing:
+        print("Missing labels:", missing)
+        return False
+    else:
+        print("All reference labels are present.")
+        return True
 
 
 def detect_spikes(traj: np.ndarray, k: float = 6.0, include_neighbor: bool = False) -> np.ndarray:

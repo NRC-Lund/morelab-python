@@ -112,7 +112,7 @@ def _setup_menu():
     add_menu_item(lmid, "Auto label labeled", "Auto label labeled")
     add_menu_item(lmid, "Auto label unlabeled", "Auto label unlabeled")
     add_menu_item(lmid, "Auto label selected trajectories (only if no overlap)", "Auto label selected trajectories")
-    add_menu_item(lmid, "Remove spikes and fill", "Remove spikes and fill")
+    #add_menu_item(lmid, "Remove spikes and fill", "Remove spikes and fill")
 
 def add_menu():
     try:
