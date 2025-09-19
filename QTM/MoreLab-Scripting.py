@@ -55,7 +55,13 @@ import pipelines.shank_gap_fill_relational
 importlib.reload(pipelines.shank_gap_fill_relational) # Reload to clear cache.
 import pipelines.foot_gap_fill_relational
 importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
-from pipelines.auto_label import gui_generate_reference_distribution, gui_auto_label, gui_auto_label_selected_trajectories, gui_remove_spikes
+from pipelines.auto_label import \
+    gui_generate_reference_distribution, \
+    gui_auto_label_everything, \
+    gui_auto_label_labeled, \
+    gui_auto_label_unlabeled, \
+    gui_auto_label_selected_trajectories, \
+    gui_remove_spikes
 importlib.reload(pipelines.auto_label) # Reload to clear cache.
 
 
@@ -74,7 +80,9 @@ def _setup_commands():
         ("Fill Gaps in Shank (Relational)", pipelines.shank_gap_fill_relational.shank_gap_fill_relational),
         ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
         ("Generate reference distribution", gui_generate_reference_distribution),
-        ("Auto label", gui_auto_label),
+        ("Auto label everything", gui_auto_label_everything),
+        ("Auto label labeled", gui_auto_label_labeled),
+        ("Auto label unlabeled", gui_auto_label_unlabeled),
         ("Auto label selected trajectories", gui_auto_label_selected_trajectories),
         ("Remove spikes and fill", gui_remove_spikes),
     ]
@@ -100,8 +108,10 @@ def _setup_menu():
     add_menu_item(gmid, "Shank", "Fill Gaps in Shank (Relational)")
     add_menu_item(gmid, "Foot", "Fill Gaps in Foot (Relational)")
     add_menu_item(lmid, "Generate reference distribution", "Generate reference distribution")
-    add_menu_item(lmid, "Auto label", "Auto label")
-    add_menu_item(lmid, "Auto label selected trajectories", "Auto label selected trajectories")
+    add_menu_item(lmid, "Auto label everything", "Auto label everything")
+    add_menu_item(lmid, "Auto label labeled", "Auto label labeled")
+    add_menu_item(lmid, "Auto label unlabeled", "Auto label unlabeled")
+    add_menu_item(lmid, "Auto label selected trajectories (only if no overlap)", "Auto label selected trajectories")
     add_menu_item(lmid, "Remove spikes and fill", "Remove spikes and fill")
 
 def add_menu():

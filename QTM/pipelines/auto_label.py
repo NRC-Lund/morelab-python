@@ -43,7 +43,7 @@ def gui_generate_reference_distribution():
     np.savez(fname_npz, P=P, P_labels=P_labels, edges=edges, labels=labels)
     print(f"Saved to {fname_npz}.")
 
-def gui_auto_label():
+def gui_auto_label_everything():
     debug_flag = False
 
     # Check QTM version
@@ -92,6 +92,93 @@ def gui_auto_label():
         edges=edges,
         labels_ref=labels_ref,
         min_len=20,
+        min_score=0.01,
+    )
+
+
+def gui_auto_label_labeled():
+    debug_flag = False
+
+    # Check QTM version
+    qtm_version = qtm.get_version()
+    if qtm_version['major']<2025:
+        print("Requires QTM 2025.1 or later.")
+        return
+    
+    # Select reference distribution file
+    if debug_flag:
+        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
+    else:    
+        fname_npz = qtm.gui.dialog.show_open_file_dialog(
+            "Load reference distribution", 
+            ["NumPy files (*.npz)"])
+        if not fname_npz:
+            print("No file selected, aborting")
+            return
+
+    # Load reference distribution
+    npz = np.load(fname_npz[0], allow_pickle=True)
+    P_ref = npz['P']
+    P_labels_ref = npz['P_labels']
+    edges = npz['edges']
+    labels_ref = npz['labels']
+    print(f"Loaded reference distribution from {fname_npz[0]}.")
+    qtm.gui.message.add_message(
+        f"Loaded distribution {fname_npz[0]}", 
+        f"Loaded reference distribution from {fname_npz[0]}.", 
+        "info")
+
+    # Relabel the labeled trajectories
+    print("Relabeling labeled trajectories...")
+    relabel_labeled_trajectories(
+        P_ref=P_ref,
+        P_labels_ref=P_labels_ref,
+        edges=edges,
+        labels_ref=labels_ref,
+    )
+
+
+def gui_auto_label_unlabeled():
+    debug_flag = False
+
+    # Check QTM version
+    qtm_version = qtm.get_version()
+    if qtm_version['major']<2025:
+        print("Requires QTM 2025.1 or later.")
+        return
+    
+    # Select reference distribution file
+    if debug_flag:
+        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
+    else:    
+        fname_npz = qtm.gui.dialog.show_open_file_dialog(
+            "Load reference distribution", 
+            ["NumPy files (*.npz)"])
+        if not fname_npz:
+            print("No file selected, aborting")
+            return
+
+    # Load reference distribution
+    npz = np.load(fname_npz[0], allow_pickle=True)
+    P_ref = npz['P']
+    P_labels_ref = npz['P_labels']
+    edges = npz['edges']
+    labels_ref = npz['labels']
+    print(f"Loaded reference distribution from {fname_npz[0]}.")
+    qtm.gui.message.add_message(
+        f"Loaded distribution {fname_npz[0]}", 
+        f"Loaded reference distribution from {fname_npz[0]}.", 
+        "info")
+
+    # Label unlabeled trajectories
+    print("Labeling unlabeled trajectories...")
+    label_all_unlabeled_trajectories(
+        P_ref=P_ref,
+        P_labels_ref=P_labels_ref,
+        edges=edges,
+        labels_ref=labels_ref,
+        min_len=20,
+        min_score=0.01,
     )
 
 
@@ -154,6 +241,7 @@ def gui_auto_label_selected_trajectories():
                 P_labels_ref=P_labels_ref,
                 edges=edges,
                 labels_ref=labels_ref,
+                move_overlaps=False
             )
 
 
@@ -318,6 +406,29 @@ def delete_gapfilled_parts(ids=None):
         if qtm.data.object.trajectory.get_part_count(id) == 0:
             qtm.data.object.trajectory.delete_trajectory(id)
             #print(f"trajectory {id} deleted as all parts were removed from it")
+
+
+def unlabel_short_parts(
+        ids: list=None,
+        thres: int=9.
+):
+    if ids is None:
+        ids = get_labeled_marker_ids()
+
+    # Find short parts
+    for id in ids:
+        label = qtm.data.object.trajectory.get_label(id)
+        parts = qtm.data.object.trajectory.get_parts(id)
+        idx_short = []
+        for idx_part, part in enumerate(parts):
+            if part['range']['end']-part['range']['start']<=thres:
+                idx_short.append(idx_part)
+
+        # Unlabel
+        if len(idx_short) > 0:
+            new_traj = qtm.data.object.trajectory.add_trajectory()
+            qtm.data.object.trajectory.move_parts(id, new_traj, idx_short)
+            print(f"  Unlabeled {len(idx_short)} short part(s).")
 
 
 def get_prefix():
@@ -491,6 +602,7 @@ def label_unlabeled_trajectory(
     edges: np.ndarray,
     labels_ref: np.ndarray,
     min_score: float = 0.001,
+    move_overlaps: bool=True
 ):
 
     # Guess label
@@ -501,31 +613,58 @@ def label_unlabeled_trajectory(
         edges=edges, 
         labels_ref=labels_ref
     )
-    if scores[0] < min_score:
-        print(f"Best guess score {scores[0]:.4f} below min_score {min_score:.4f}. Discarding.")
-        qtm.data.object.trajectory.set_is_discarded(id_sel, True)
-        return
+    
         
     for label_guess, score in zip(labels_guess, scores):
         print(f"Guess: {label_guess} (score {score:.4f})")
+
+        # Break if score is too low
+        if score < min_score:
+            print(f"The score {score:.4f} is below the minimum score {min_score:.4f}. Discarding.")
+            qtm.data.object.trajectory.set_is_discarded(id_sel, True)
+            break
 
         # Find the target trajectory
         id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + label_guess)
         if id_guess is None:
             raise RuntimeError(f"Could not find trajectory for guessed label {label_guess}.")
 
-        # Unlabel/move overlapping parts out of the guessed trajectory
-        resolved = resolve_overlaps_into_target(
-            id_sel=id_sel,
-            id_target=id_guess,
-            P_ref=P_ref,
-            P_labels_ref=P_labels_ref,
-            edges=edges,
-            labels_ref=labels_ref,
-        )
-        if not resolved:
-            print("Existing part fits better, trying next guess...")
-            continue
+
+        # Overlaps
+        if move_overlaps:
+            # Unlabel/move overlapping parts out of the guessed trajectory
+            resolved = resolve_overlaps_into_target(
+                id_sel=id_sel,
+                id_target=id_guess,
+                P_ref=P_ref,
+                P_labels_ref=P_labels_ref,
+                edges=edges,
+                labels_ref=labels_ref,
+            )
+            if not resolved:
+                print("Existing part fits better, trying next guess...")
+                continue
+
+        else:
+            # Range of the candidate part we want to insert
+            series_range = qtm.data.series._3d.get_sample_range(id_sel)
+
+            # Parts in the target trajectory
+            parts = qtm.data.series._3d.get_sample_ranges(id_guess) or []
+
+            # Find first overlapping part index
+            print(f"Checking {len(parts)} existing parts for overlaps...")
+            first_idx = next(
+                (
+                    i for i, part in enumerate(parts)
+                    if not (part['end'] < series_range['start'] or part['start'] > series_range['end'])
+                ),
+                None
+            )
+
+            if first_idx is not None:
+                print("Found overlaps. Skipping.")
+                break
 
         # Finally, move the selected unlabeled trajectory into the guessed one
         qtm.data.object.trajectory.move_parts(id_sel, id_guess)
@@ -546,11 +685,7 @@ def resolve_overlaps_into_target(
     edges: np.ndarray = None,
     labels_ref: np.ndarray = None,
 ) -> int:
-    """
-    For the selected trajectory `id_sel`, remove any overlapping parts that currently
-    exist in the target labeled trajectory `id_target` by moving those overlapping
-    parts out to newly created trajectories.
-    """
+
     success = False
 
     # Range of the candidate part we want to insert
@@ -637,6 +772,9 @@ def relabel_labeled_trajectories(
     # Delete gap-filled parts first
     delete_gapfilled_parts(ids_labeled)
 
+    # Unlabel short paths
+    unlabel_short_parts(ids=ids_labeled, thres=9)
+
     for idx_labeled, id_labeled in enumerate(ids_labeled):
         print(f"Checking trajectory {idx_labeled+1}/{len(ids_labeled)}...")
 
@@ -645,17 +783,17 @@ def relabel_labeled_trajectories(
         label_noprefix = label.split("_",1)[1]  # Safe also if no prefix
 
         # Check all parts of the trajectory
-        parts = qtm.data.series._3d.get_sample_ranges(id_labeled)
+        parts = qtm.data.object.trajectory.get_parts(id_labeled)
         if label:
             print(f" {label} has {len(parts)} parts.")
 
         idx_mismatch = []
         for idx_part, part in enumerate(parts):
-            print(f"  Part {idx_part}: {part['start']}-{part['end']}")
+            print(f"  Part {idx_part}: {part['range']['start']}-{part['range']['end']}")
             # Guess label
             labels_guess, scores, contrast = guess_label(
                 id_sel=id_labeled,
-                series_range=parts[idx_part],
+                series_range=part['range'],
                 P1=P_ref, 
                 P1_labels=P_labels_ref, 
                 edges=edges, 
