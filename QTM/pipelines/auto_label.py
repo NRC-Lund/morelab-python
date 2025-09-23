@@ -43,9 +43,7 @@ def gui_generate_reference_distribution():
     np.savez(fname_npz, P=P, P_labels=P_labels, edges=edges, labels=labels)
     print(f"Saved to {fname_npz}.")
 
-def gui_auto_label_everything():
-    debug_flag = False
-
+def gui_auto_label_everything(fname_npz=None):
     # Check QTM version
     qtm_version = qtm.get_version()
     if qtm_version['major']<2025:
@@ -53,26 +51,26 @@ def gui_auto_label_everything():
         return
     
     # Select reference distribution file
-    if debug_flag:
-        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
-    else:    
+    if fname_npz is None:  
         fname_npz = qtm.gui.dialog.show_open_file_dialog(
             "Load reference distribution", 
             ["NumPy files (*.npz)"])
-        if not fname_npz:
+        if fname_npz:
+            fname_npz = fname_npz[0]
+        else:
             print("No file selected, aborting")
             return
 
     # Load reference distribution
-    npz = np.load(fname_npz[0], allow_pickle=True)
+    npz = np.load(fname_npz, allow_pickle=True)
     P_ref = npz['P']
     P_labels_ref = npz['P_labels']
     edges = npz['edges']
     labels_ref = npz['labels']
-    print(f"Loaded reference distribution from {fname_npz[0]}.")
+    print(f"Loaded reference distribution from {fname_npz}.")
     qtm.gui.message.add_message(
-        f"Loaded distribution {fname_npz[0]}", 
-        f"Loaded reference distribution from {fname_npz[0]}.", 
+        f"Loaded distribution {fname_npz}", 
+        f"Loaded reference distribution from {fname_npz}.", 
         "info")
     
     # Check that all reference labels are present
@@ -101,9 +99,7 @@ def gui_auto_label_everything():
     )
 
 
-def gui_auto_label_labeled():
-    debug_flag = False
-
+def gui_auto_label_labeled(fname_npz=None):
     # Check QTM version
     qtm_version = qtm.get_version()
     if qtm_version['major']<2025:
@@ -111,26 +107,26 @@ def gui_auto_label_labeled():
         return
     
     # Select reference distribution file
-    if debug_flag:
-        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
-    else:    
+    if fname_npz is None:
         fname_npz = qtm.gui.dialog.show_open_file_dialog(
             "Load reference distribution", 
             ["NumPy files (*.npz)"])
-        if not fname_npz:
+        if fname_npz:
+            fname_npz = fname_npz[0]
+        else:
             print("No file selected, aborting")
             return
 
     # Load reference distribution
-    npz = np.load(fname_npz[0], allow_pickle=True)
+    npz = np.load(fname_npz, allow_pickle=True)
     P_ref = npz['P']
     P_labels_ref = npz['P_labels']
     edges = npz['edges']
     labels_ref = npz['labels']
-    print(f"Loaded reference distribution from {fname_npz[0]}.")
+    print(f"Loaded reference distribution from {fname_npz}.")
     qtm.gui.message.add_message(
-        f"Loaded distribution {fname_npz[0]}", 
-        f"Loaded reference distribution from {fname_npz[0]}.", 
+        f"Loaded distribution {fname_npz}", 
+        f"Loaded reference distribution from {fname_npz}.", 
         "info")
     
     # Check that all reference labels are present
@@ -148,9 +144,7 @@ def gui_auto_label_labeled():
     )
 
 
-def gui_auto_label_unlabeled():
-    debug_flag = False
-
+def gui_auto_label_unlabeled(fname_npz=None):
     # Check QTM version
     qtm_version = qtm.get_version()
     if qtm_version['major']<2025:
@@ -158,26 +152,26 @@ def gui_auto_label_unlabeled():
         return
     
     # Select reference distribution file
-    if debug_flag:
-        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
-    else:    
+    if fname_npz is None:
         fname_npz = qtm.gui.dialog.show_open_file_dialog(
             "Load reference distribution", 
             ["NumPy files (*.npz)"])
-        if not fname_npz:
+        if fname_npz:
+            fname_npz = fname_npz[0]
+        else:
             print("No file selected, aborting")
             return
 
     # Load reference distribution
-    npz = np.load(fname_npz[0], allow_pickle=True)
+    npz = np.load(fname_npz, allow_pickle=True)
     P_ref = npz['P']
     P_labels_ref = npz['P_labels']
     edges = npz['edges']
     labels_ref = npz['labels']
-    print(f"Loaded reference distribution from {fname_npz[0]}.")
+    print(f"Loaded reference distribution from {fname_npz}.")
     qtm.gui.message.add_message(
-        f"Loaded distribution {fname_npz[0]}", 
-        f"Loaded reference distribution from {fname_npz[0]}.", 
+        f"Loaded distribution {fname_npz}", 
+        f"Loaded reference distribution from {fname_npz}.", 
         "info")
     
     # Check that all reference labels are present
@@ -197,9 +191,7 @@ def gui_auto_label_unlabeled():
     )
 
 
-def gui_auto_label_selected_trajectories():
-    debug_flag = False
-
+def gui_auto_label_selected_trajectories(fname_npz=None):
     # Check QTM version
     qtm_version = qtm.get_version()
     if qtm_version['major']<2025:
@@ -207,23 +199,23 @@ def gui_auto_label_selected_trajectories():
         return
     
     # Select reference distribution file
-    if debug_flag:
-        fname_npz = ["Y:\Analysis\eScienceMoves\AutoLabel\QTM\P013\S0 cogn.npz"]
-    else:    
+    if fname_npz is None:  
         fname_npz = qtm.gui.dialog.show_open_file_dialog(
             "Load reference distribution", 
             ["NumPy files (*.npz)"])
-        if not fname_npz:
+        if fname_npz:
+            fname_npz = fname_npz[0]
+        else:
             print("No file selected, aborting")
             return
 
     # Load reference distribution
-    npz = np.load(fname_npz[0], allow_pickle=True)
+    npz = np.load(fname_npz, allow_pickle=True)
     P_ref = npz['P']
     P_labels_ref = npz['P_labels']
     edges = npz['edges']
     labels_ref = npz['labels']
-    print(f"Loaded reference distribution from {fname_npz[0]}.")
+    print(f"Loaded reference distribution from {fname_npz}.")
 
     # Check that all reference labels are present
     if not check_labels(labels_ref):
