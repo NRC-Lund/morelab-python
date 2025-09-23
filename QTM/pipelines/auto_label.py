@@ -170,12 +170,7 @@ def gui_remove_spikes():
         #print(np.flatnonzero(spikes))
 
 
-def load_distribution_file(fname_npz: str):
-    # Heal control characters in path
-    fname_npz = (fname_npz.replace("\t", "\\t")
-           .replace("\n", "\\n")
-           .replace("\r", "\\r"))
-    
+def load_distribution_file(fname_npz: str):    
     # Check QTM version
     qtm_version = qtm.get_version()
     if qtm_version['major']<2025:
@@ -192,6 +187,11 @@ def load_distribution_file(fname_npz: str):
         else:
             print("No file selected, aborting")
             return
+    else:
+        # Heal control characters in path
+        fname_npz = (fname_npz.replace("\t", "\\t")
+           .replace("\n", "\\n")
+           .replace("\r", "\\r"))
 
     # Load reference distribution
     npz = np.load(fname_npz, allow_pickle=True)
@@ -357,6 +357,7 @@ def ungroup_unlabeled_trajectories():
 
 
 def delete_gapfilled_parts(ids=None):
+    # Get all series if not given
     if ids is None:
         ids = qtm.data.series._3d.get_series_ids()
 
@@ -370,16 +371,13 @@ def delete_gapfilled_parts(ids=None):
                 gap_filled_parts.append(part)
         for part in reversed(gap_filled_parts):
             qtm.data.object.trajectory.delete_parts(id, [part])
-            #print(f"part {part} was deleted from {label} due to being gap-filled")
-        if qtm.data.object.trajectory.get_part_count(id) == 0:
-            qtm.data.object.trajectory.delete_trajectory(id)
-            #print(f"trajectory {id} deleted as all parts were removed from it")
 
 
 def unlabel_short_parts(
         ids: list=None,
         thres: int=9.
 ):
+    # Get labeled trajectories if not given
     if ids is None:
         ids = get_labeled_marker_ids()
 
@@ -734,9 +732,10 @@ def relabel_labeled_trajectories(
     max_outer_iters: int = 1000,
     min_score: float = 0.001,
 ):
+    # Get labeled trajectories if not given
     if ids_labeled is None:
         ids_labeled = get_labeled_marker_ids()
-
+    
     # Delete gap-filled parts first
     delete_gapfilled_parts(ids_labeled)
 
