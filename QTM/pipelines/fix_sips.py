@@ -69,8 +69,8 @@ def process_side(id_wb, id_wl, id_wr, side, prefix):
         dist_limit = 100 # Max allowed distance to sips_estimate in mm.
         min_dist = float('inf')
         candidate_id = None
-        id_unlabeled = get_unlabeled_marker_ids()  # repeat command because unidentified marker list has now changed
-        for marker_id in id_unlabeled:
+        id_unlabelled = get_unlabeled_marker_ids()  # repeat command because unidentified marker list has now changed
+        for marker_id in id_unlabelled:
             sample = qtm.data.series._3d.get_sample(marker_id, i)
             if sample:
                 dist = np.linalg.norm(np.array(sample["position"]) - sips_estimate)
@@ -132,7 +132,7 @@ def fix_sips():
             prefix = label.split("_")[0]
             break
     else:
-        print("No labeled markers found. Please label the markers before running this script.")
+        print("No labelled markers found. Please label the markers before running this script.")
         return
     print(f"Using prefix: {prefix}")
 
@@ -144,7 +144,7 @@ def fix_sips():
     id_wr = qtm.data.object.trajectory.find_trajectory(f"{prefix}_WaistRFront")
     if id_wr is None: print(f"Marker {prefix}_WaistRFront is missing."); return
 
-    # Check if waist markers are fully labeled
+    # Check if waist markers are fully labelled
     if not check_trajectory_continuity(id_wb): return
     if not check_trajectory_continuity(id_wl): return
     if not check_trajectory_continuity(id_wr): return
@@ -160,9 +160,9 @@ def fix_sips():
         print(f"Unidentified existing {prefix}_RSips trajectory.")
 
     ## Split all unidentified trajectories into single parts and delete gap-filled parts
-    id_unlabeled = get_unlabeled_marker_ids()
+    id_unlabelled = get_unlabeled_marker_ids()
     filled_count = 0
-    for marker_id in id_unlabeled:
+    for marker_id in id_unlabelled:
         part_count = qtm.data.object.trajectory.get_part_count(marker_id)
         while part_count > 0:
             # Get the first part of the trajectory

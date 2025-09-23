@@ -59,8 +59,8 @@ This requires a **reference distribution** generated from a well-labelled, repre
 - **Auto label everything** is eqivalent to first running **Auto label labeled**, then **Auto label unlabeled**.  
 - For live feedback, run the algorithm from the **Terminal**:  
   - `gui_auto_label_everything()`  
-  - `gui_auto_label_labeled()`  
-  - `gui_auto_label_unlabeled()`  
+  - `gui_auto_label_labelled()`  
+  - `gui_auto_label_unlabelled()`  
   - `gui_auto_label_selected_trajectories()`  
 - When running from the Terminal, you can also specify the reference file directly, e.g.:  
   ```sh

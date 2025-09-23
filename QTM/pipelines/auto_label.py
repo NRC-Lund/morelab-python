@@ -19,7 +19,7 @@ def gui_generate_reference_distribution():
         print("Requires QTM 2025.1 or later.")
         return
 
-    # Get labeled trajectories
+    # Get labelled trajectories
     ids = get_labeled_marker_ids()
     labels = get_labels_without_prefix(ids)
     pos = get_positions(ids)
@@ -53,18 +53,18 @@ def gui_auto_label_everything(fname_npz=None):
         print("Not all reference labels are present, aborting.")
         return
 
-    # Relabel the labeled trajectories
-    print("Relabeling labeled trajectories...")
-    relabel_labeled_trajectories(
+    # Relabel the labelled trajectories
+    print("Relabelling labelled trajectories...")
+    relabel_labelled_trajectories(
         P_ref=P_ref,
         P_labels_ref=P_labels_ref,
         edges=edges,
         labels_ref=labels_ref,
     )
 
-    # Label unlabeled trajectories
-    print("Labeling unlabeled trajectories...")
-    label_all_unlabeled_trajectories(
+    # Label unlabelled trajectories
+    print("Labelling unlabelled trajectories...")
+    label_all_unlabelled_trajectories(
         P_ref=P_ref,
         P_labels_ref=P_labels_ref,
         edges=edges,
@@ -74,7 +74,7 @@ def gui_auto_label_everything(fname_npz=None):
     )
 
 
-def gui_auto_label_labeled(fname_npz=None):
+def gui_auto_label_labelled(fname_npz=None):
     # Load reference distribution
     P_ref, P_labels_ref, edges, labels_ref = load_distribution_file(fname_npz)
     
@@ -83,9 +83,9 @@ def gui_auto_label_labeled(fname_npz=None):
         print("Not all reference labels are present, aborting.")
         return
 
-    # Relabel the labeled trajectories
-    print("Relabeling labeled trajectories...")
-    relabel_labeled_trajectories(
+    # Relabel the labelled trajectories
+    print("Relabelling labelled trajectories...")
+    relabel_labelled_trajectories(
         P_ref=P_ref,
         P_labels_ref=P_labels_ref,
         edges=edges,
@@ -93,7 +93,7 @@ def gui_auto_label_labeled(fname_npz=None):
     )
 
 
-def gui_auto_label_unlabeled(fname_npz=None):
+def gui_auto_label_unlabelled(fname_npz=None):
     # Load reference distribution
     P_ref, P_labels_ref, edges, labels_ref = load_distribution_file(fname_npz)
     
@@ -102,9 +102,9 @@ def gui_auto_label_unlabeled(fname_npz=None):
         print("Not all reference labels are present, aborting.")
         return
 
-    # Label unlabeled trajectories
-    print("Labeling unlabeled trajectories...")
-    label_all_unlabeled_trajectories(
+    # Label unlabelled trajectories
+    print("Labelling unlabelled trajectories...")
+    label_all_unlabelled_trajectories(
         P_ref=P_ref,
         P_labels_ref=P_labels_ref,
         edges=edges,
@@ -130,25 +130,25 @@ def gui_auto_label_selected_trajectories(fname_npz=None):
         print("No trajectories selected, aborting")
         return
     
-    # Check if trajectories are labeled or unlabeled
-    ids_selected_labeled = [tid for tid in ids_selected if tid in get_labeled_marker_ids()]
-    ids_selected_unlabeled = [tid for tid in ids_selected if tid in get_unlabeled_marker_ids()]
+    # Check if trajectories are labelled or unlabelled
+    ids_selected_labelled = [tid for tid in ids_selected if tid in get_labeled_marker_ids()]
+    ids_selected_unlabelled = [tid for tid in ids_selected if tid in get_unlabeled_marker_ids()]
 
-    # Relabel the labeled trajectories
-    if len(ids_selected_labeled) > 0:
-        print("Relabeling labeled trajectories...")
-        relabel_labeled_trajectories(
+    # Relabel the labelled trajectories
+    if len(ids_selected_labelled) > 0:
+        print("Relabelling labelled trajectories...")
+        relabel_labelled_trajectories(
             P_ref=P_ref,
             P_labels_ref=P_labels_ref,
             edges=edges,
             labels_ref=labels_ref,
-            ids_labeled=ids_selected_labeled,
+            ids_labeled=ids_selected_labelled,
         )
 
-    # Label unlabeled trajectories
-    if len(ids_selected_unlabeled) > 0:
-        for ids in ids_selected_unlabeled:
-            label_unlabeled_trajectory(
+    # Label unlabelled trajectories
+    if len(ids_selected_unlabelled) > 0:
+        for ids in ids_selected_unlabelled:
+            label_unlabelled_trajectory(
                 id_sel=ids,
                 P_ref=P_ref,
                 P_labels_ref=P_labels_ref,
@@ -271,9 +271,9 @@ def get_positions(ids, series_range=None):
 
 def check_labels(labels_ref):
     
-    # Get labels of all labeled trajectories
-    ids_labeled = get_labeled_marker_ids()
-    existing_labels = get_labels_without_prefix(ids_labeled)
+    # Get labels of all labelled trajectories
+    ids_labelled = get_labeled_marker_ids()
+    existing_labels = get_labels_without_prefix(ids_labelled)
     
     # Find which reference labels are missing
     missing = [lbl for lbl in labels_ref if lbl not in existing_labels]
@@ -334,11 +334,11 @@ def detect_spikes(traj: np.ndarray, k: float = 6.0, include_neighbor: bool = Fal
 
 
 
-def ungroup_unlabeled_trajectories():
+def ungroup_unlabelled_trajectories():
 ## Split all unidentified trajectories into single parts and delete gap-filled parts
-    id_unlabeled = get_unlabeled_marker_ids()
+    id_unlabelled = get_unlabeled_marker_ids()
     filled_count = 0
-    for marker_id in id_unlabeled:
+    for marker_id in id_unlabelled:
         part_count = qtm.data.object.trajectory.get_part_count(marker_id)
         while part_count > 0:
             # Get the first part of the trajectory
@@ -353,7 +353,7 @@ def ungroup_unlabeled_trajectories():
                 qtm.data.object.trajectory.move_parts(marker_id, new_traj, [0])
             part_count -= 1
     if filled_count > 0:
-        print(f"Deleted {filled_count} unlabeled, gap-filled parts.")
+        print(f"Deleted {filled_count} unlabelled, gap-filled parts.")
 
 
 def delete_gapfilled_parts(ids=None):
@@ -377,7 +377,7 @@ def unlabel_short_parts(
         ids: list=None,
         thres: int=9.
 ):
-    # Get labeled trajectories if not given
+    # Get labelled trajectories if not given
     if ids is None:
         ids = get_labeled_marker_ids()
 
@@ -394,7 +394,7 @@ def unlabel_short_parts(
         if len(idx_short) > 0:
             new_traj = qtm.data.object.trajectory.add_trajectory()
             qtm.data.object.trajectory.move_parts(id, new_traj, idx_short)
-            print(f"  Unlabeled {len(idx_short)} short part(s).")
+            print(f"  Unlabelled {len(idx_short)} short part(s).")
 
 
 def get_prefix():
@@ -493,7 +493,7 @@ def guess_label(
     return ordered_labels, ordered_scores, contrast
 
 
-def label_all_unlabeled_trajectories(
+def label_all_unlabelled_trajectories(
     P_ref: np.ndarray,
     P_labels_ref: np.ndarray,
     edges: np.ndarray,
@@ -503,55 +503,55 @@ def label_all_unlabeled_trajectories(
     min_score: float = 0.001,
 ):
 
-    # Ungroup all unlabeled trajectories to single parts and delete gap-filled parts
-    ungroup_unlabeled_trajectories()
+    # Ungroup all unlabelled trajectories to single parts and delete gap-filled parts
+    ungroup_unlabelled_trajectories()
 
-    # Iteratively label the longest unlabeled trajectory
+    # Iteratively label the longest unlabelled trajectory
     outer_iters = 0
-    iters_n_unlabeled = []
+    iters_n_unlabelled = []
     while True:
         outer_iters += 1
         if outer_iters > max_outer_iters:
             print("Stopping: reached max_outer_iters (safety).")
             break
 
-        # Get all unlabeled trajectories
+        # Get all unlabelled trajectories
         #ids_unlabeled = get_unlabeled_marker_ids()
-        ids_unlabeled = [
+        ids_unlabelled = [
             tid for tid in get_unlabeled_marker_ids()
             if not qtm.data.object.trajectory.get_is_discarded(tid)
         ]
 
         
-        n_unlabeled = len(ids_unlabeled)
-        iters_n_unlabeled.append(n_unlabeled)
-        if n_unlabeled == 0:
-            print("No unlabeled trajectories left.")
+        n_unlabelled = len(ids_unlabelled)
+        iters_n_unlabelled.append(n_unlabelled)
+        if n_unlabelled == 0:
+            print("No unlabelled trajectories left.")
             break
-        print(f"{n_unlabeled} unlabeled trajectories left.")
+        print(f"{n_unlabelled} unlabelled trajectories left.")
 
         # Check for stagnation
-        if len(iters_n_unlabeled) > 10 and iters_n_unlabeled[-9]<n_unlabeled+5:
-            print("Warning: unlabeled count did not decrease enough in the last 10 passes, stopping.")
+        if len(iters_n_unlabelled) > 10 and iters_n_unlabelled[-9]<n_unlabelled+5:
+            print("Warning: unlabelled count did not decrease enough in the last 10 passes, stopping.")
             break
 
         # Sort by length (desc)
         counts = np.array(
-            [qtm.data.series._3d.get_sample_count(tid) for tid in ids_unlabeled],
+            [qtm.data.series._3d.get_sample_count(tid) for tid in ids_unlabelled],
             dtype=int,
         )
         order = np.argsort(-counts)
-        sorted_ids = np.array(ids_unlabeled)[order]
+        sorted_ids = np.array(ids_unlabelled)[order]
         sorted_counts = counts[order]
 
         if sorted_counts[0] < min_len:
             print(f"Only short trajectories left (<{min_len}). Stopping.")
             break
 
-        # Pick the longest unlabeled trajectory
+        # Pick the longest unlabelled trajectory
         id_sel = int(sorted_ids[0])
 
-        label_unlabeled_trajectory(
+        label_unlabelled_trajectory(
             id_sel=id_sel,
             P_ref=P_ref,
             P_labels_ref=P_labels_ref,
@@ -561,7 +561,7 @@ def label_all_unlabeled_trajectories(
         )
 
 
-def label_unlabeled_trajectory(
+def label_unlabelled_trajectory(
     id_sel: int,
     P_ref: np.ndarray,
     P_labels_ref: np.ndarray,
@@ -632,7 +632,7 @@ def label_unlabeled_trajectory(
                 print("Found overlaps. Skipping.")
                 break
 
-        # Finally, move the selected unlabeled trajectory into the guessed one
+        # Finally, move the selected unlabelled trajectory into the guessed one
         qtm.data.object.trajectory.move_parts(id_sel, id_guess)
         print(f"Moved candidate part to {label_guess}.\n")
         break
@@ -711,7 +711,7 @@ def resolve_overlaps_into_target(
             # Create a new trajectory and move the conflicting part out of the target
             new_traj = qtm.data.object.trajectory.add_trajectory()
             qtm.data.object.trajectory.move_parts(id_target, new_traj, [first_idx])
-            print("Unlabeled the overlapping part.")
+            print("Unlabelled the overlapping part.")
         else:
             print("Keeping the existing part, skipping overlap resolution.")
             for label, score in zip(labels_guess1, scores1):
@@ -722,7 +722,7 @@ def resolve_overlaps_into_target(
     return success
 
 
-def relabel_labeled_trajectories(
+def relabel_labelled_trajectories(
     P_ref: np.ndarray,
     P_labels_ref: np.ndarray,
     edges: np.ndarray,
@@ -732,7 +732,7 @@ def relabel_labeled_trajectories(
     max_outer_iters: int = 1000,
     min_score: float = 0.001,
 ):
-    # Get labeled trajectories if not given
+    # Get labelled trajectories if not given
     if ids_labeled is None:
         ids_labeled = get_labeled_marker_ids()
     
@@ -775,4 +775,4 @@ def relabel_labeled_trajectories(
         if len(idx_mismatch) > 0:
             new_traj = qtm.data.object.trajectory.add_trajectory()
             qtm.data.object.trajectory.move_parts(id_labeled, new_traj, idx_mismatch)
-            print(f"  Unlabeled {len(idx_mismatch)} mismatching part(s).")
+            print(f"  Unlabelled {len(idx_mismatch)} mismatching part(s).")

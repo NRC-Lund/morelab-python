@@ -58,8 +58,8 @@ importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
 from pipelines.auto_label import \
     gui_generate_reference_distribution, \
     gui_auto_label_everything, \
-    gui_auto_label_labeled, \
-    gui_auto_label_unlabeled, \
+    gui_auto_label_labelled, \
+    gui_auto_label_unlabelled, \
     gui_auto_label_selected_trajectories, \
     gui_remove_spikes
 importlib.reload(pipelines.auto_label) # Reload to clear cache.
@@ -81,8 +81,8 @@ def _setup_commands():
         ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
         ("Generate reference distribution", gui_generate_reference_distribution),
         ("Auto label everything", gui_auto_label_everything),
-        ("Auto label labeled", gui_auto_label_labeled),
-        ("Auto label unlabeled", gui_auto_label_unlabeled),
+        ("Auto label labelled", gui_auto_label_labelled),
+        ("Auto label unlabelled", gui_auto_label_unlabelled),
         ("Auto label selected trajectories", gui_auto_label_selected_trajectories),
         ("Remove spikes and fill", gui_remove_spikes),
     ]
