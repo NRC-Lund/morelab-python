@@ -21,7 +21,7 @@ def gui_generate_reference_distribution():
 
     # Get labelled trajectories
     ids = get_labeled_marker_ids()
-    labels = get_labels_without_prefix(ids)
+    labels = get_labels(ids)
     pos = get_positions(ids)
 
     # Calculate reference distributions
@@ -53,6 +53,12 @@ def gui_auto_label_everything(fname_npz=None):
         print("Not all reference labels are present, aborting.")
         return
 
+    # Get ids of all referenced trajectories
+    ids_ref = [
+        qtm.data.object.trajectory.find_trajectory(label)
+        for label in labels_ref
+    ]
+
     # Relabel the labelled trajectories
     print("Relabelling labelled trajectories...")
     relabel_labelled_trajectories(
@@ -60,6 +66,7 @@ def gui_auto_label_everything(fname_npz=None):
         P_labels_ref=P_labels_ref,
         edges=edges,
         labels_ref=labels_ref,
+        ids_labeled=ids_ref,
     )
 
     # Label unlabelled trajectories
@@ -83,6 +90,12 @@ def gui_auto_label_labelled(fname_npz=None):
         print("Not all reference labels are present, aborting.")
         return
 
+    # Get ids of all referenced trajectories
+    ids_ref = [
+        qtm.data.object.trajectory.find_trajectory(label)
+        for label in labels_ref
+    ]
+
     # Relabel the labelled trajectories
     print("Relabelling labelled trajectories...")
     relabel_labelled_trajectories(
@@ -90,6 +103,7 @@ def gui_auto_label_labelled(fname_npz=None):
         P_labels_ref=P_labels_ref,
         edges=edges,
         labels_ref=labels_ref,
+        ids_labeled=ids_ref,
     )
 
 
@@ -130,8 +144,14 @@ def gui_auto_label_selected_trajectories(fname_npz=None):
         print("No trajectories selected, aborting")
         return
     
+    # Get ids of all referenced trajectories
+    ids_ref = [
+        qtm.data.object.trajectory.find_trajectory(label)
+        for label in labels_ref
+    ]
+
     # Check if trajectories are labelled or unlabelled
-    ids_selected_labelled = [tid for tid in ids_selected if tid in get_labeled_marker_ids()]
+    ids_selected_labelled = [tid for tid in ids_selected if tid in ids_ref]
     ids_selected_unlabelled = [tid for tid in ids_selected if tid in get_unlabeled_marker_ids()]
 
     # Relabel the labelled trajectories
@@ -273,7 +293,7 @@ def check_labels(labels_ref):
     
     # Get labels of all labelled trajectories
     ids_labelled = get_labeled_marker_ids()
-    existing_labels = get_labels_without_prefix(ids_labelled)
+    existing_labels = get_labels(ids_labelled)
     
     # Find which reference labels are missing
     missing = [lbl for lbl in labels_ref if lbl not in existing_labels]
@@ -403,6 +423,15 @@ def get_prefix():
     before, sep, after = label.partition("_")
     return before if sep else ""
 
+
+def get_labels(ids):
+    labels = []
+    for id in ids:
+        labels.append(qtm.data.object.trajectory.get_label(id))
+    labels = np.array(labels, dtype=object)    # Make it indexable
+    return labels
+
+
 def get_labels_without_prefix(ids):
     # Remove prefixes from labels
     labels = []
@@ -422,7 +451,6 @@ def guess_label(
     id_sel: int,                    # selected trajectory index (e.g., from find_longest_trajectory)
     series_range: dict = None       # optional range to use instead of full range
 ):
-    
     # Get range of selected trajectory
     if series_range is None:
         series_range = qtm.data.series._3d.get_sample_range(id_sel)
@@ -431,17 +459,15 @@ def guess_label(
     # Get positions of selected trajectory
     pos_sel = np.full((3, num_frames), np.nan, dtype=float)
     series = qtm.data.series._3d.get_samples(id_sel, series_range)
+
     # Fill in positions frame by frame
     for fj, f in enumerate(series):
         if f is not None and f.get("position") is not None:
             pos_sel[:, fj] = f["position"]
     
     # Get ids for all reference labels
-    prefix = get_prefix()
-
-    # Add prefix to reference labels
     ids_ref = [
-        qtm.data.object.trajectory.find_trajectory(prefix + "_" + label)
+        qtm.data.object.trajectory.find_trajectory(label)
         for label in labels_ref
     ]
 
@@ -591,7 +617,7 @@ def label_unlabelled_trajectory(
             break
 
         # Find the target trajectory
-        id_guess = qtm.data.object.trajectory.find_trajectory(get_prefix() + "_" + label_guess)
+        id_guess = qtm.data.object.trajectory.find_trajectory(label_guess)
         if id_guess is None:
             raise RuntimeError(f"Could not find trajectory for guessed label {label_guess}.")
 
@@ -745,9 +771,8 @@ def relabel_labelled_trajectories(
     for idx_labeled, id_labeled in enumerate(ids_labeled):
         print(f"Checking trajectory {idx_labeled+1}/{len(ids_labeled)}...")
 
-        # Get label with and without prefix
+        # Get label
         label = qtm.data.object.trajectory.get_label(id_labeled)
-        label_noprefix = label.split("_",1)[1]  # Safe also if no prefix
 
         # Check all parts of the trajectory
         parts = qtm.data.object.trajectory.get_parts(id_labeled)
@@ -768,8 +793,8 @@ def relabel_labelled_trajectories(
             )
             print(f"   Score={scores[0]:.4f}, contrast={contrast:.4f}")
             # Compare the best guess with the current label
-            if labels_guess[0] != label_noprefix:
-                print(f"   Current label '{label_noprefix}' does not match the best guess '{labels_guess[0]}'.")
+            if labels_guess[0] != label:
+                print(f"   Current label '{label}' does not match the best guess '{labels_guess[0]}'.")
                 idx_mismatch.append(idx_part)
 
         if len(idx_mismatch) > 0:
