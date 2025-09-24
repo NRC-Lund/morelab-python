@@ -109,8 +109,8 @@ def _setup_menu():
     add_menu_item(gmid, "Foot", "Fill Gaps in Foot (Relational)")
     add_menu_item(lmid, "Generate reference distribution", "Generate reference distribution")
     add_menu_item(lmid, "Auto label everything", "Auto label everything")
-    add_menu_item(lmid, "Auto label labeled", "Auto label labeled")
-    add_menu_item(lmid, "Auto label unlabeled", "Auto label unlabeled")
+    add_menu_item(lmid, "Auto label labelled", "Auto label labelled")
+    add_menu_item(lmid, "Auto label unlabelled", "Auto label unlabelled")
     add_menu_item(lmid, "Auto label selected trajectories (only if no overlap)", "Auto label selected trajectories")
     #add_menu_item(lmid, "Remove spikes and fill", "Remove spikes and fill")
 
