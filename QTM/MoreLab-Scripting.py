@@ -61,7 +61,9 @@ from pipelines.auto_label import \
     gui_auto_label_labelled, \
     gui_auto_label_unlabelled, \
     gui_auto_label_selected_trajectories, \
-    gui_remove_spikes
+    gui_remove_spikes, \
+    gui_generate_sal_ref, \
+    gui_sal
 importlib.reload(pipelines.auto_label) # Reload to clear cache.
 
 
@@ -85,6 +87,8 @@ def _setup_commands():
         ("Auto label unlabelled", gui_auto_label_unlabelled),
         ("Auto label selected trajectories", gui_auto_label_selected_trajectories),
         ("Remove spikes and fill", gui_remove_spikes),
+        ("Generate SAL reference distribution", gui_generate_sal_ref),
+        ("SAL", gui_sal),
     ]
     for label, fn in cmds:
         qtm.gui.add_command(label)
@@ -112,7 +116,9 @@ def _setup_menu():
     add_menu_item(lmid, "Auto label labelled", "Auto label labelled")
     add_menu_item(lmid, "Auto label unlabelled", "Auto label unlabelled")
     add_menu_item(lmid, "Auto label selected trajectories (only if no overlap)", "Auto label selected trajectories")
-    #add_menu_item(lmid, "Remove spikes and fill", "Remove spikes and fill")
+    qtm.gui.insert_menu_separator(lmid,255)
+    add_menu_item(lmid, "Generate SAL reference distribution", "Generate SAL reference distribution")
+    add_menu_item(lmid, "SAL", "SAL")
 
 def add_menu():
     try:

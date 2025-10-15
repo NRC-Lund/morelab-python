@@ -1,3 +1,4 @@
+from threading import local
 import qtm
 import numpy as np
 import os
@@ -188,6 +189,181 @@ def gui_remove_spikes():
         spikes = detect_spikes(pos, k=20.0, include_neighbor=True)
         print(f"Detected {np.sum(spikes)} spikes in {label}.")
         #print(np.flatnonzero(spikes))
+
+def gui_sal():
+    print("hello")
+
+
+def gui_generate_sal_ref():
+    # Check QTM version
+    qtm_version = qtm.get_version()
+    if qtm_version['major']<2025 and qtm_version['minor']<2:
+        print("Requires QTM 2025.2 or later.")
+        return
+
+    # Select a skeleton based on the prefix
+    skeleton_id = qtm.data.object.skeleton.find_skeleton(get_prefix())
+
+    # Calculate SAL reference distribution
+    print(f"Calculating SAL reference distribution...")
+    sal_co, sal_mad, sal_labels = calculate_sal_reference(skeleton_id)
+
+    # Select file to save to
+    fname_qtm = qtm.file.get_path()
+    fname_npz = os.path.splitext(fname_qtm)[0] + "_SAL.npz"
+    fname_npz = qtm.gui.dialog.show_save_file_dialog("Save SAL reference distribution", 
+                                                     ["NumPy files (*.npz)"], 
+                                                     os.path.basename(fname_npz), 
+                                                     os.path.dirname(fname_npz))
+    if not fname_npz:
+        print("No file selected, aborting")
+        return
+    
+    # Save to npz file
+    np.savez(fname_npz, sal_co=sal_co, sal_mad=sal_mad, sal_labels=sal_labels)
+    print(f"Saved to {fname_npz}.")
+
+    # calculate_sal_score(
+    #     skeleton_id=skeleton_id, 
+    #     traj_label="P032_RArm", 
+    #     segment_label="RightArm", 
+    #     segment_marker_label="RArm")
+
+
+def calculate_sal_reference(skeleton_id):
+    # Get marker to segments mapping
+    marker_to_segments = map_marker_to_segments(skeleton_id)
+    
+    # Get labelled trajectories
+    ids = get_labeled_marker_ids()
+    traj_labels = get_labels(ids)
+    traj_labels_noprefix = get_labels_without_prefix(ids)
+    traj_pos = get_positions(ids) # shape: (num_traj, 3, num_frames)
+
+    # Calculate local positions
+    n_traj = len(traj_labels)
+    co_ref = np.full((n_traj, 3), np.nan, dtype=float)
+    mad_ref = np.full((n_traj, 3), np.nan, dtype=float)
+    labels_ref = np.empty((n_traj, 2), dtype=object) # marker, segment
+    for i_traj in range(n_traj):
+        label_noprefix = traj_labels_noprefix[i_traj]
+        segment_label = marker_to_segments[label_noprefix][0] # Use the first segment found
+        labels_ref[i_traj, :] = (traj_labels[i_traj], segment_label)
+        segment_id = qtm.data.object.skeleton.find_segment(skeleton_id, segment_label)
+        local_pos = np.full((3, traj_pos.shape[2]), np.nan, dtype=float) # shape: (3, num_frames)
+
+        n_frames = local_pos.shape[1]
+        n_select = min(100, n_frames)
+        selected_frames = np.sort(np.random.choice(n_frames, size=n_select, replace=False))
+        for i_frame in selected_frames:
+            xform = get_segment_global_xform(segment_id, int(i_frame))
+            if xform is None:
+                continue
+            local_pos[:, i_frame] = xform_vector(np.linalg.inv(xform), np.squeeze(traj_pos[i_traj,:, i_frame]))
+
+        co_ref[i_traj, :] = np.nanmedian(local_pos.T, axis=0)
+        mad_ref[i_traj, :] = np.nanmedian(np.abs(local_pos.T - co_ref[i_traj, :]), axis=0)
+
+        with np.printoptions(precision=2, suppress=True):
+            print(f"{i_traj+1}/{n_traj}: {traj_labels[i_traj]} -> {segment_label}, LCS={co_ref[i_traj, :]}, MAD={mad_ref[i_traj, :]}")
+
+    return co_ref, mad_ref, labels_ref
+
+def map_marker_to_segments(skeleton_id: int):
+    # Get all segments of skeleton
+    segment_ids = qtm.data.object.skeleton.get_segment_ids(skeleton_id)
+
+    # Map marker name -> list of segment names
+    marker_to_segments = {}
+    for segment_id in segment_ids:
+        segment_name = qtm.data.object.skeleton.get_segment_name(segment_id)
+        segment_markers = qtm.data.object.skeleton.get_segment_markers(segment_id) or []
+        for a in segment_markers:
+            # Defensive access in case the API returns unexpected structures
+            name = a.get('name') if isinstance(a, dict) else None
+            if not name:
+                continue
+            marker_to_segments.setdefault(name, []).append(segment_name)
+
+    # # Print a summary for debugging
+    # print(f"Built marker->segments map with {len(marker_to_segments)} markers.")
+    # for m, segs in marker_to_segments.items():
+    #     print(f"  {m}: {len(segs)} segment(s) -> {segs}")
+
+    return marker_to_segments
+
+def calculate_sal_score(
+    skeleton_id: int,
+    traj_label: str,
+    segment_label: str,
+    segment_marker_label: str,
+):
+    # Get a trajectory
+    traj_id = qtm.data.object.trajectory.find_trajectory(traj_label)
+    series_range = qtm.data.series._3d.get_sample_range(traj_id)
+
+    # Select a segment
+    segment_id = qtm.data.object.skeleton.find_segment(skeleton_id, segment_label)
+    segment_markers = qtm.data.object.skeleton.get_segment_markers(segment_id)
+
+    # Select a marker on the segment
+    ref_pos = next(item['position'] for item in segment_markers if item['name'] == segment_marker_label)
+    ref_pos = np.array(ref_pos, dtype=float)
+
+    # Allocate residuals for all frames (T, 3)
+    num_frames = series_range["end"]-series_range["start"]+1
+    res = np.full((num_frames, 3), np.nan, dtype=float)
+
+    # Loop over frames
+    for i_frame in range(num_frames):
+        frame = series_range["start"] + i_frame
+
+        # Segment transform (global from local)
+        xform = get_segment_global_xform(segment_id, frame)
+        if xform is None:
+            continue
+
+        # Calculate difference between measured and expected position in local frame
+        sample = qtm.data.series._3d.get_sample(traj_id, frame)
+        if sample is None or sample.get('position') is None:
+            continue
+        local_traj_pos = xform_vector(np.linalg.inv(xform), np.array(sample['position'], dtype=float))
+        res[i_frame, :] = local_traj_pos - ref_pos
+
+    z_mean = np.nanmean(np.abs(res), axis=0)
+    #print(z_mean)
+
+
+def _get_xform(segment_id, frame)->np.ndarray:
+    s = qtm.data.series.skeleton.get_sample(segment_id,frame)
+    if s is not None:
+        return np.array(s)
+    return None
+
+def get_segment_global_xform(segment_id,frame)->np.ndarray:
+    """
+    Traverse the hierarchy to multiply transforms to turn local coordinates into global
+    """
+    my_xform = _get_xform(segment_id,frame)
+    if my_xform is None:
+        # segment_name = qtm.data.object.skeleton.get_segment_name(id)
+        # xform = np.array(qtm.data.series.skeleton.get_sample(id,frame))
+        # print(f"{segment_name} Xform is None Frame: {frame}")
+        return None
+
+    parent_id = qtm.data.object.skeleton.get_segment_parent_id(segment_id)
+    if parent_id is not None:
+        parent_xform = get_segment_global_xform(parent_id, frame)
+        global_xform = np.matmul(parent_xform, my_xform.copy())
+        my_xform = global_xform.copy()
+    return my_xform
+
+def xform_vector(xform,v)->np.ndarray:
+    vn = np.array([0.0,0.0,0.0])
+    vn[0] = v[0] * xform[0][0] + v[1]*xform[0][1] + v[2]*xform[0][2] + xform[0][3]
+    vn[1] = v[0] * xform[1][0] + v[1]*xform[1][1] + v[2]*xform[1][2] + xform[1][3]
+    vn[2] = v[0] * xform[2][0] + v[1]*xform[2][1] + v[2]*xform[2][2] + xform[2][3]
+    return vn
 
 
 def load_distribution_file(fname_npz: str):    
@@ -446,8 +622,8 @@ def get_labels_without_prefix(ids):
 def guess_label(
     labels_ref: np.ndarray,         # candidate labels to try, shape: (K,)
     edges: np.ndarray,              # histogram edges, shape: (num_bins+1,)
-    P1: np.ndarray,                  # reference distributions, shape: (num_pairs, num_bins)
-    P1_labels: np.ndarray,           # pair labels for P1, shape: (num_pairs, 2), dtype str/object
+    P1: np.ndarray,                 # reference distributions, shape: (num_pairs, num_bins)
+    P1_labels: np.ndarray,          # pair labels for P1, shape: (num_pairs, 2), dtype str/object
     id_sel: int,                    # selected trajectory index (e.g., from find_longest_trajectory)
     series_range: dict = None       # optional range to use instead of full range
 ):
