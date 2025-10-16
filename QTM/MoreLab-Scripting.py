@@ -66,7 +66,7 @@ from pipelines.auto_label import \
     gui_sal
 importlib.reload(pipelines.auto_label) # Reload to clear cache.
 
-
+from pipelines.batch_calibration import batch_calibrate_skeletons
 
 MENU_NAME = "MoreLab"
 
@@ -88,6 +88,7 @@ def _setup_commands():
         ("Auto label selected trajectories", gui_auto_label_selected_trajectories),
         ("Remove spikes and fill", gui_remove_spikes),
         ("Generate SAL reference distribution", gui_generate_sal_ref),
+        ("Batch calibrate skeleton", batch_calibrate_skeletons),
         ("SAL", gui_sal),
     ]
     for label, fn in cmds:
