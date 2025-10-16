@@ -4,6 +4,7 @@ import numpy as np
 import os
 from typing import Tuple
 from pathlib import Path
+import datetime
 
 # Set up QTM Python API
 #this_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -12,6 +13,8 @@ from pathlib import Path
 #import qtm
 from helpers.traj import get_unlabeled_marker_ids, get_labeled_marker_ids, get_marker_positions
 
+# Global arrays that get pre-allocated for speed
+global_xforms = {}
 
 def gui_generate_reference_distribution():
     # Check QTM version
@@ -190,9 +193,6 @@ def gui_remove_spikes():
         print(f"Detected {np.sum(spikes)} spikes in {label}.")
         #print(np.flatnonzero(spikes))
 
-def gui_sal():
-    print("hello")
-
 
 def gui_generate_sal_ref():
     # Check QTM version
@@ -201,8 +201,11 @@ def gui_generate_sal_ref():
         print("Requires QTM 2025.2 or later.")
         return
 
-    # Select a skeleton based on the prefix
+    # Find skeleton based on the prefix
     skeleton_id = qtm.data.object.skeleton.find_skeleton(get_prefix())
+    if skeleton_id is None:
+        print(f"No skeleton found with prefix '{get_prefix()}', aborting.")
+        return
 
     # Calculate SAL reference distribution
     print(f"Calculating SAL reference distribution...")
@@ -223,11 +226,93 @@ def gui_generate_sal_ref():
     np.savez(fname_npz, sal_co=sal_co, sal_mad=sal_mad, sal_labels=sal_labels)
     print(f"Saved to {fname_npz}.")
 
-    # calculate_sal_score(
-    #     skeleton_id=skeleton_id, 
-    #     traj_label="P032_RArm", 
-    #     segment_label="RightArm", 
-    #     segment_marker_label="RArm")
+
+def gui_sal(fname_npz=None):
+    # Load reference distribution
+    sal_co, sal_mad, sal_labels = load_sal_distribution_file(fname_npz)
+
+    # Check that all reference labels are present
+    if not check_labels(sal_labels[:,0]):
+        print("Not all reference labels are present, aborting.")
+        return
+
+    # Get selected trajectories
+    selection = qtm.gui.selection.get_selections("trajectory")
+    if len(selection) == 0:
+        print("No trajectories selected, aborting")
+        return
+    
+    # Find skeleton based on prefix
+    skeleton_id = qtm.data.object.skeleton.find_skeleton(get_prefix())
+    if skeleton_id is None:
+        print(f"No skeleton found with prefix '{get_prefix()}', aborting.")
+        return
+
+    # Precalculate all segment xforms for speed
+    _get_all_xforms(
+        qtm.data.object.skeleton.get_skeleton_root_id(skeleton_id), 
+        qtm.gui.timeline.get_measured_range(),
+        0)
+    
+    # Calculate SAL scores for selected trajectories
+    sal_selected_trajectories(skeleton_id, sal_co, sal_mad, sal_labels, selection)
+
+
+def sal_selected_trajectories(
+    skeleton_id: int,
+    sal_co: np.ndarray,
+    sal_mad: np.ndarray,
+    sal_labels: np.ndarray,
+    selection: list = None,
+):
+
+    # Candidates (all markers in the marker set)
+    candidate_labels = sal_labels[:,0]
+
+    # Loop over selected items
+    for sel in selection:
+        # Print trajectory info
+        label_sel = qtm.data.object.trajectory.get_label(sel['id'])
+        print(f"Trajectory {sel['id']} ({label_sel}):")
+
+        # Get parts of selected trajectory
+        if sel['part_index'] is None: # If a group of parts
+            parts = qtm.data.object.trajectory.get_parts(sel['id'])
+        else: # If a single part
+            parts = [qtm.data.object.trajectory.get_part(sel['id'], sel['part_index'])]
+
+        # Loop over parts
+        for idx_part, part in enumerate(parts):
+            # Print part info
+            if sel['part_index'] is None:
+                print(f"  Part {idx_part+1}: {part['range']['start']}-{part['range']['end']}")
+            else:
+                print(f"  Part {sel['part_index']+1}: {part['range']['start']}-{part['range']['end']}")
+
+            # Calculate scores for all candidates
+            score_m = np.full((len(candidate_labels),), np.nan, dtype=float)
+            for iGuess, cand in enumerate(candidate_labels):
+                score_m[iGuess] = calculate_sal_score(
+                    sal_co=sal_co,
+                    sal_mad=sal_mad,
+                    sal_labels=sal_labels,
+                    skeleton_id=skeleton_id, 
+                    traj_id=sel['id'],
+                    candidate_label=cand,
+                    series_range=part["range"])
+
+            # Order candidates by score
+            sort_ix = np.argsort(-score_m)  # Indices into candidate_labels, sorted by descending score
+            ordered_labels = candidate_labels[sort_ix]
+            ordered_scores = score_m[sort_ix]
+
+            # Calculate contrast (best/second-best)
+            best_score = score_m[sort_ix[0]] if score_m.size > 0 else np.nan
+            if score_m.size > 1 and np.isfinite(score_m[sort_ix[1]]):
+                contrast = best_score / score_m[sort_ix[1]]
+            else:
+                contrast = np.nan
+            print(f"    Best guess: {ordered_labels[0]} with score {best_score:.3f} (contrast {contrast:.3f})")
 
 
 def calculate_sal_reference(skeleton_id):
@@ -293,22 +378,26 @@ def map_marker_to_segments(skeleton_id: int):
     return marker_to_segments
 
 def calculate_sal_score(
+    sal_co: np.ndarray,
+    sal_mad: np.ndarray,
+    sal_labels: np.ndarray,
     skeleton_id: int,
-    traj_label: str,
-    segment_label: str,
-    segment_marker_label: str,
+    traj_id: int,
+    candidate_label: str,
+    series_range: dict = None,
 ):
-    # Get a trajectory
-    traj_id = qtm.data.object.trajectory.find_trajectory(traj_label)
-    series_range = qtm.data.series._3d.get_sample_range(traj_id)
+    
+    # Get range of selected trajectory
+    if series_range is None:
+        series_range = qtm.data.series._3d.get_sample_range(id_sel)
 
-    # Select a segment
+    # Find the segment
+    idx = sal_labels[:, 0] == candidate_label
+    segment_label = sal_labels[idx, 1][0]
     segment_id = qtm.data.object.skeleton.find_segment(skeleton_id, segment_label)
-    segment_markers = qtm.data.object.skeleton.get_segment_markers(segment_id)
 
-    # Select a marker on the segment
-    ref_pos = next(item['position'] for item in segment_markers if item['name'] == segment_marker_label)
-    ref_pos = np.array(ref_pos, dtype=float)
+    # Local coordinates of the marker
+    ref_pos = sal_co[idx, :] # (1, 3)
 
     # Allocate residuals for all frames (T, 3)
     num_frames = series_range["end"]-series_range["start"]+1
@@ -329,16 +418,29 @@ def calculate_sal_score(
             continue
         local_traj_pos = xform_vector(np.linalg.inv(xform), np.array(sample['position'], dtype=float))
         res[i_frame, :] = local_traj_pos - ref_pos
-
-    z_mean = np.nanmean(np.abs(res), axis=0)
-    #print(z_mean)
+    z_mean = np.nanmean(res, axis=0) / sal_mad[idx, :]
+    score = 1 / np.linalg.norm(z_mean) # >1 if within the median absolute deviation
+    return score
 
 
 def _get_xform(segment_id, frame)->np.ndarray:
+    if segment_id in global_xforms:
+        return global_xforms[segment_id][frame]
     s = qtm.data.series.skeleton.get_sample(segment_id,frame)
     if s is not None:
         return np.array(s)
     return None
+
+
+def _get_all_xforms(segment_id, frame_range, level = 0)->None:
+    global global_xforms
+    xforms = qtm.data.series.skeleton.get_samples(segment_id, frame_range)
+    global_xforms[segment_id] = xforms
+
+    child_ids = qtm.data.object.skeleton.get_segment_child_ids(segment_id)
+    for child_id in child_ids:
+        _get_all_xforms(child_id, frame_range, level + 1)
+
 
 def get_segment_global_xform(segment_id,frame)->np.ndarray:
     """
@@ -401,6 +503,42 @@ def load_distribution_file(fname_npz: str):
         f"Loaded reference distribution from {fname_npz}.", 
         "info")
     return P_ref, P_labels_ref, edges, labels_ref
+
+
+def load_sal_distribution_file(fname_npz: str):    
+    # Check QTM version
+    qtm_version = qtm.get_version()
+    if qtm_version['major']<2025:
+        print("Requires QTM 2025.1 or later.")
+        return
+    
+    # Select reference distribution file
+    if fname_npz is None:  
+        fname_npz = qtm.gui.dialog.show_open_file_dialog(
+            "Load SAL reference distribution", 
+            ["NumPy files (*.npz)"])
+        if fname_npz:
+            fname_npz = fname_npz[0]
+        else:
+            print("No file selected, aborting")
+            return
+    else:
+        # Heal control characters in path
+        fname_npz = (fname_npz.replace("\t", "\\t")
+           .replace("\n", "\\n")
+           .replace("\r", "\\r"))
+
+    # Load reference distribution
+    npz = np.load(fname_npz, allow_pickle=True)
+    sal_co = npz['sal_co']
+    sal_mad = npz['sal_mad']
+    sal_labels = npz['sal_labels']
+    print(f"Loaded SAL reference distribution from {fname_npz}.")
+    qtm.gui.message.add_message(
+        f"Loaded SAL distribution {fname_npz}", 
+        f"Loaded SAL reference distribution from {fname_npz}.", 
+        "info")
+    return sal_co, sal_mad, sal_labels
 
 
 def calculate_distribution(co1: np.ndarray, co2: np.ndarray, edges: np.ndarray) -> np.ndarray:

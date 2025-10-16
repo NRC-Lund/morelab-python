@@ -119,7 +119,7 @@ def _setup_menu():
     add_menu_item(lmid, "Auto label selected trajectories (only if no overlap)", "Auto label selected trajectories")
     qtm.gui.insert_menu_separator(lmid,255)
     add_menu_item(lmid, "Generate SAL reference distribution", "Generate SAL reference distribution")
-    add_menu_item(lmid, "SAL", "SAL")
+    add_menu_item(lmid, "Check selected trajectories using skeleton", "SAL")
 
 def add_menu():
     try:
