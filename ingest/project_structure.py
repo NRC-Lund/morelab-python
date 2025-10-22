@@ -41,7 +41,15 @@ class ProjectStructure:
         metadata = {}
 
         # First check if this is a session directory by checking the parent and dir name
-        if re.match(r'^FP\d+$', os.path.basename(parent_dir)):
+        # Use the configurable participant pattern from settings instead of hardcoded pattern
+        parent_dir_name = os.path.basename(parent_dir)
+        is_participant_dir = False
+        for entity_type, pattern in self.patterns.items():
+            if entity_type == "Participant" and pattern.match(parent_dir_name):
+                is_participant_dir = True
+                break
+        
+        if is_participant_dir:
             # Handle session directories with optional number suffix
             dir_parts = dir_name.rsplit('_', 1)
             base_name = dir_parts[0]
@@ -51,8 +59,14 @@ class ProjectStructure:
                 metadata["session_name"] = dir_name  # full session directory name
                 if number is not None:
                     metadata["session_number"] = number
-                metadata["participant_id"] = os.path.basename(parent_dir)[2:]  # keep for legacy
-                metadata["participant_name"] = os.path.basename(parent_dir)    # full dir name
+                # Extract participant ID using the pattern match
+                for entity_type, pattern in self.patterns.items():
+                    if entity_type == "Participant":
+                        match = pattern.match(parent_dir_name)
+                        if match:
+                            metadata["participant_id"] = match.group(1)  # Extract the ID from the pattern
+                            break
+                metadata["participant_name"] = parent_dir_name    # full dir name
                 logging.info(f"✓ Valid session directory: {dir_name} (participant: {metadata['participant_name']})")
                 return metadata
 
