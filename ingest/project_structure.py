@@ -62,7 +62,6 @@ class ProjectStructure:
             if match and entity_type == "Participant":
                 metadata["participant_id"] = match.group(1)
                 metadata["participant_name"] = dir_name  # full dir name
-                logging.info(f"✓ Valid participant directory: {dir_name}")
                 break
 
         return metadata
@@ -76,58 +75,53 @@ class ProjectStructure:
         logging.info("Scanning base directory: %s", os.path.abspath(self.base_dir))
         logging.info("Directory patterns to match: %s", {k: v.pattern for k, v in self.patterns.items()})
 
-        for root, dirs, files in os.walk(self.base_dir):
-            abs_path = os.path.abspath(root)
-            # Get metadata from the directory structure
-            rel_path = os.path.relpath(root, self.base_dir)
-            if rel_path == ".":
+        # First level: participant directories
+        for participant_dir in sorted(os.listdir(self.base_dir)):
+            participant_path = os.path.join(self.base_dir, participant_dir)
+            if not os.path.isdir(participant_path):
                 continue
-
+            participant_metadata = self.validate_directory(participant_path)
+            if "participant_name" not in participant_metadata:
+                continue
             logging.info("----------------------------------------")
-            logging.info("Checking directory: %s", abs_path)
-            logging.info("Directory name to match: %s", os.path.basename(abs_path))
-            dir_metadata = self.validate_directory(abs_path)
-            
-            if not dir_metadata:
-                logging.info("❌ No metadata match for directory")
-                continue
+            logging.info("Checking participant: %s", participant_dir)
+            logging.info("✓ Valid participant directory: %s", participant_dir)
 
-            logging.info("✓ Found directory metadata: %s", dir_metadata)
-
-            # Only process files in session directories
-            if "session_type" not in dir_metadata:
-                logging.info("❌ Not a session directory")
-                continue
-
-            logging.info("✓ Valid session directory (type: %s)", 
-                        dir_metadata["session_type"])
-
-            # Find QTM files
-            logging.info("Checking %d files: %s", len(files), files)
-            for file in sorted(files):  # Sort to process in a consistent order
-                if not file.lower().endswith(".qtm"):
+            # Second level: session directories inside participant
+            for session_dir in sorted(os.listdir(participant_path)):
+                session_path = os.path.join(participant_path, session_dir)
+                if not os.path.isdir(session_path):
                     continue
-
-                full_path = os.path.abspath(os.path.join(root, file))
-                logging.info("✓ Found QTM file: %s", full_path)
-                # Get measurement info from filename
-                measurement_info = self._identify_measurement(file)
-                if not measurement_info:
-                    logging.warning("❌ Unrecognized measurement format: %s", file)
+                session_metadata = self.validate_directory(session_path)
+                if "session_type" not in session_metadata:
                     continue
+                logging.info("Checking session: %s", session_dir)
+                logging.info("✓ Valid session directory: %s (type: %s)", session_dir, session_metadata["session_type"])
 
-                file_metadata = {
-                    "file_path": os.path.join(rel_path, file),
-                    "type": measurement_info["type"],  # measurement type
-                    "repetition": measurement_info["repetition"],
-                    "participant_name": dir_metadata.get("participant_name"),
-                    "session_name": dir_metadata.get("session_name"),
-                    "session_type": dir_metadata.get("session_type"),
-                    "session_number": dir_metadata.get("session_number"),
-                    "participant_id": dir_metadata.get("participant_id"),
-                }
-                logging.debug("Found QTM file: %s", file_metadata)
-                qtm_files.append(file_metadata)
+                # Find QTM files in session directory
+                files = os.listdir(session_path)
+                logging.info("Checking %d files: %s", len(files), files)
+                for file in sorted(files):
+                    if not file.lower().endswith(".qtm"):
+                        continue
+                    full_path = os.path.abspath(os.path.join(session_path, file))
+                    logging.info("✓ Found QTM file: %s", full_path)
+                    measurement_info = self._identify_measurement(file)
+                    if not measurement_info:
+                        logging.warning("❌ Unrecognized measurement format: %s", file)
+                        continue
+                    file_metadata = {
+                        "file_path": os.path.join(participant_dir, session_dir, file),
+                        "type": measurement_info["type"],  # measurement type
+                        "repetition": measurement_info["repetition"],
+                        "participant_name": participant_metadata.get("participant_name"),
+                        "session_name": session_metadata.get("session_name"),
+                        "session_type": session_metadata.get("session_type"),
+                        "session_number": session_metadata.get("session_number"),
+                        "participant_id": participant_metadata.get("participant_id"),
+                    }
+                    logging.debug("Found QTM file: %s", file_metadata)
+                    qtm_files.append(file_metadata)
 
         logging.info("Found %d QTM files", len(qtm_files))
         return qtm_files
