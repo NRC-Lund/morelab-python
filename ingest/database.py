@@ -15,8 +15,9 @@ class Database:
         self.conn = connection
         self.settings = settings
 
-    def get_or_create_participant(self, name: str, type_: str = None, sex: str = None, date_of_birth: str = None) -> str:
-        """Get or create a participant record. Only inserts minimal info if not found."""
+    def get_or_create_participant(self, name: str, type_: str = None, sex: str = None, date_of_birth: str = None) -> tuple[str, bool]:
+        """Get or create a participant record. Only inserts minimal info if not found.
+        Returns: (uuid, was_created) tuple."""
         cursor = self.conn.cursor()
         try:
             cursor.execute(
@@ -25,7 +26,7 @@ class Database:
             )
             row = cursor.fetchone()
             if row:
-                return row[0]
+                return row[0], False
 
             participant_uuid = str(uuid.uuid4())
             cursor.execute(
@@ -33,7 +34,7 @@ class Database:
                 (participant_uuid, name, type_, sex, date_of_birth)
             )
             self.conn.commit()
-            return participant_uuid
+            return participant_uuid, True
         finally:
             cursor.close()
 
@@ -42,8 +43,9 @@ class Database:
         name: str,
         participant_uuid: str,
         type_: str = None
-    ) -> str:
-        """Get or create a session record. Only inserts minimal info if not found."""
+    ) -> tuple[str, bool]:
+        """Get or create a session record. Only inserts minimal info if not found.
+        Returns: (uuid, was_created) tuple."""
         cursor = self.conn.cursor()
         try:
             cursor.execute(
@@ -52,7 +54,7 @@ class Database:
             )
             row = cursor.fetchone()
             if row:
-                return row[0]
+                return row[0], False
 
             session_uuid = str(uuid.uuid4())
             cursor.execute(
@@ -60,7 +62,7 @@ class Database:
                 (session_uuid, name, type_, participant_uuid)
             )
             self.conn.commit()
-            return session_uuid
+            return session_uuid, True
         finally:
             cursor.close()
 
@@ -73,8 +75,9 @@ class Database:
         type_: Optional[str] = None,
         start_time: Optional[str] = None,
         valid: Optional[int] = 1
-    ) -> str:
-        """Add a QTM file record. Only inserts minimal info if not found."""
+    ) -> tuple[str, bool]:
+        """Add a QTM file record. Only inserts minimal info if not found.
+        Returns: (uuid, was_created) tuple."""
         cursor = self.conn.cursor()
         try:
             cursor.execute(
@@ -83,7 +86,7 @@ class Database:
             )
             row = cursor.fetchone()
             if row:
-                return row[0]
+                return row[0], False
 
             record_uuid = str(uuid.uuid4())
             cursor.execute(
@@ -91,6 +94,6 @@ class Database:
                 (record_uuid, session_uuid, file_path, trial, repetition, type_, start_time, valid)
             )
             self.conn.commit()
-            return record_uuid
+            return record_uuid, True
         finally:
             cursor.close()

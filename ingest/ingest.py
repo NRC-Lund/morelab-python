@@ -97,27 +97,59 @@ def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
     settings = parse_settings_file(settings_file)
     project = ProjectStructure(settings, base_dir)
     qtm_files = project.scan_for_qtm_files()
+
+    # Track what we've already seen to avoid duplicate logging
+    seen_participants = set()
+    seen_sessions = set()
+
     for file_info in qtm_files:
         participant_name = file_info.get("participant_name", file_info.get("participant_id"))
         session_name = file_info.get("session_name", file_info.get("session_type"))
         session_type = file_info.get("session_type", "Task session")
+        logging.info("----------------------------------------")
         logging.info("Processing file: %s", file_info.get("file_path"))
 
-        participant_uuid = db.get_or_create_participant(
+        # Handle participant
+        participant_uuid, is_new_participant = db.get_or_create_participant(
             name=participant_name
         )
+        if participant_name not in seen_participants:
+            seen_participants.add(participant_name)
+            if getattr(db, "dry_run", False):
+                logging.info("Dry-run: would %s participant: %s", 
+                           "add new" if is_new_participant else "use existing",
+                           participant_name)
+            else:
+                logging.info("%s participant: %s",
+                           "Added new" if is_new_participant else "Using existing",
+                           participant_name)
 
-        session_uuid = db.get_or_create_session(
+        # Handle session
+        session_key = f"{participant_name}/{session_name}"
+        session_uuid, is_new_session = db.get_or_create_session(
             name=session_name,
             participant_uuid=participant_uuid,
             type_=session_type
         )
+        if session_key not in seen_sessions:
+            seen_sessions.add(session_key)
+            if getattr(db, "dry_run", False):
+                logging.info("Dry-run: would %s session: %s (type: %s)",
+                           "add new" if is_new_session else "use existing",
+                           session_name, session_type)
+            else:
+                logging.info("%s session: %s (type: %s)",
+                           "Added new" if is_new_session else "Using existing",
+                           session_name, session_type)
 
-        # Add QTM record, using new schema fields
+        # Handle QTM record
         if getattr(db, "dry_run", False):
-            logging.info("Dry-run: would add qtm record for %s (session: %s)", file_info.get("file_path"), session_uuid)
+            logging.info("Dry-run: would add QTM record: %s (measurement: %s, repetition: %d)",
+                        file_info.get("file_path"),
+                        file_info.get("type"),
+                        file_info.get("repetition"))
         else:
-            db.add_qtm_record(
+            record_uuid, is_new_record = db.add_qtm_record(
                 session_uuid=session_uuid,
                 file_path=file_info["file_path"],
                 trial=file_info.get("trial"),
@@ -126,6 +158,16 @@ def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
                 start_time=file_info.get("start_time"),
                 valid=file_info.get("valid", 1)
             )
+            if is_new_record:
+                logging.info("Added QTM record: %s (measurement: %s, repetition: %d)",
+                           file_info.get("file_path"),
+                           file_info.get("type"),
+                           file_info.get("repetition"))
+            else:
+                logging.info("QTM record already exists: %s (measurement: %s, repetition: %d)",
+                           file_info.get("file_path"),
+                           file_info.get("type"),
+                           file_info.get("repetition"))
 
 
 def parse_args():
@@ -219,7 +261,21 @@ def main():
 
     # Configure logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
-    
+
+    # Parse Settings.paf to get Project ID
+    settings = parse_settings_file(args.settings_file)
+    project_id = settings.project_id
+
+    # Determine database name: CLI/.env takes precedence, else use Project ID
+    db_name = args.database if args.database else project_id
+    if not db_name:
+        logging.error("No database name specified and no Project ID found in settings file.")
+        sys.exit(1)
+    if args.database:
+        logging.info(f"Using database name from argument/.env: {db_name}")
+    else:
+        logging.info(f"Using Project ID as database name: {db_name}")
+
     # Set up SSH config if needed
     ssh_config = None
     if args.ssh_host:
@@ -231,18 +287,17 @@ def main():
             "passphrase": args.ssh_passphrase,
         }
     
-    # Connect to database
+    # Connect to database using resolved db_name
     connection, tunnel = get_connection(
         args.host,
         args.port,
         args.user,
         args.password,
-        args.database,
+        db_name,
         ssh_config
     )
     
     try:
-        settings = parse_settings_file(args.settings_file)
         db = Database(connection, settings)
         # Attach dry_run flag to db for use in ingest_qtm_files
         setattr(db, "dry_run", getattr(args, "dry_run", False))
