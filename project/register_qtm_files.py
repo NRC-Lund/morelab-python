@@ -1,5 +1,5 @@
 """
-Main script for ingesting QTM files based on project settings.
+Main script for processing QTM files based on project settings.
 """
 import argparse
 import os
@@ -46,8 +46,8 @@ def load_env():
 
 
 
-def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
-    """Main ingestion function."""
+def process_qtm_files(settings_file: str, base_dir: str, db: Database):
+    """Main processing function."""
     settings = parse_paf_file(settings_file)
     project = ProjectStructure(settings, base_dir)
     qtm_files = project.scan_for_qtm_files()
@@ -127,7 +127,7 @@ def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Ingest QTM files based on project settings"
+        description="Process QTM files based on project settings"
     )
     
     # Database connection options
@@ -253,8 +253,8 @@ def main():
     )
     
     try:
-        ingest_qtm_files(args.settings_file, args.base_dir, db)
-        print("Ingestion completed successfully.")
+        process_qtm_files(args.settings_file, args.base_dir, db)
+        print("Processing completed successfully.")
     finally:
         db.close()
 

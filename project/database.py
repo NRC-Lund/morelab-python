@@ -1,5 +1,5 @@
 """
-Database schema and operations for the enhanced QTM data ingestion.
+Database schema and operations for the enhanced QTM data processing.
 """
 import os
 import sys
