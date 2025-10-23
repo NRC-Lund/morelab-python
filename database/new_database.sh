@@ -1,5 +1,5 @@
 #!/bin/bash
-# new_database.sh — Create MySQL database and users
+# new_database.sh — Create MySQL database and users. Run locally on database server.
 # Usage: ./new_database.sh <database_name>
 
 if [ -z "$1" ]; then
@@ -24,5 +24,9 @@ GRANT ALL ON ${DB_NAME}.* TO '${USER1}'@'%';
 GRANT ALL ON ${DB_NAME}.* TO '${USER2}'@'%';
 FLUSH PRIVILEGES;
 "
+
+# Create tables from SQL file
+echo "Creating tables from create_tables.sql..."
+sudo mysql ${DB_NAME} < create_tables.sql
 
 echo "✅ Database '${DB_NAME}' and user '${USER1}' created (or already exists)."
