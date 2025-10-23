@@ -66,3 +66,36 @@ This requires a **reference distribution** generated from a well-labelled, repre
   ```sh
   gui_auto_label_selected_trajectories("My distribution.npz")
 
+## Project database (experimental!)
+
+### Installation
+
+Creates and activates a conda environment named "morelab":
+```sh
+conda env create -f project/environment.yml
+conda activate morelab
+```
+
+A project database can be created with the `new_database.sh` script (run it on the MoreLab server).
+
+Create a `.env` file in your working directory with the following information (needed to connect to the database):
+```sh
+DB_HOST=lfs1370.srv.lu.se
+DB_PORT=3306
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_NAME=
+SSH_HOST=lfs1370.srv.lu.se
+SSH_PORT=22
+SSH_USER=med-pha
+SSH_KEY=~/.ssh/id_rsa
+SSH_PASSPHRASE=
+```
+
+### Usage
+
+This will read the QTM project structure from `Settings.paf`, scan the data directory for qtm files and register them in the database:
+```sh
+python -m project.register_qtm_files /MyQtmProject/Settings.paf /MyQtmProject/Data --dry-run
+```
+Remove `--dry-run` if you want to make changes to the database.
