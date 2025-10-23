@@ -6,7 +6,7 @@ import re
 import logging
 from typing import Dict, List, Optional, Union, Any
 
-from .settings_parser import ProjectSettings
+from .paf_parser import ProjectSettings
 
 
 class ProjectStructure:

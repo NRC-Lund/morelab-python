@@ -87,7 +87,7 @@ def parse_session_type(name: str, config: Dict[str, Any]) -> SessionType:
     )
 
 
-def parse_settings_file(file_path: str) -> ProjectSettings:
+def parse_paf_file(file_path: str) -> ProjectSettings:
     """Parse a Settings.paf file into a ProjectSettings object."""
     with open(file_path, 'r') as f:
         # The file isn't strictly YAML, but we can parse it as such

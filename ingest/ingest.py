@@ -17,18 +17,13 @@ except ImportError:
     sys.exit(1)
 
 try:
-    from sshtunnel import SSHTunnelForwarder
-except ImportError:
-    SSHTunnelForwarder = None
-
-try:
     from dotenv import load_dotenv
 except ImportError:
     load_dotenv = None
 
 from .database import Database
 from .project_structure import ProjectStructure
-from .settings_parser import parse_settings_file
+from .paf_parser import parse_paf_file
 
 
 def load_env():
@@ -49,52 +44,11 @@ def load_env():
         load_dotenv()
 
 
-def get_connection(
-    host: str,
-    port: int,
-    user: str,
-    password: str,
-    database: str,
-    ssh_config: Optional[dict] = None
-):
-    """Get a database connection, optionally through SSH tunnel."""
-    tunnel = None
-    if ssh_config:
-        if SSHTunnelForwarder is None:
-            print(
-                "Missing dependency: sshtunnel. Install with: pip install sshtunnel",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-        tunnel = SSHTunnelForwarder(
-            (ssh_config["host"], ssh_config["port"]),
-            ssh_username=ssh_config["user"],
-            ssh_pkey=ssh_config["key"],
-            ssh_private_key_password=ssh_config.get("passphrase"),
-            remote_bind_address=("127.0.0.1", 3306),
-            local_bind_address=("127.0.0.1", 0),
-        )
-        tunnel.start()
-        db_host = "127.0.0.1"
-        db_port = tunnel.local_bind_port
-    else:
-        db_host = host
-        db_port = port
-
-    return mysql.connector.connect(
-        host=db_host,
-        port=db_port,
-        user=user,
-        password=password,
-        database=database,
-        autocommit=False,
-    ), tunnel
 
 
 def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
     """Main ingestion function."""
-    settings = parse_settings_file(settings_file)
+    settings = parse_paf_file(settings_file)
     project = ProjectStructure(settings, base_dir)
     qtm_files = project.scan_for_qtm_files()
 
@@ -115,7 +69,7 @@ def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
         )
         if participant_name not in seen_participants:
             seen_participants.add(participant_name)
-            if getattr(db, "dry_run", False):
+            if db.dry_run:
                 logging.info("Dry-run: would %s participant: %s", 
                            "add new" if is_new_participant else "use existing",
                            participant_name)
@@ -133,7 +87,7 @@ def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
         )
         if session_key not in seen_sessions:
             seen_sessions.add(session_key)
-            if getattr(db, "dry_run", False):
+            if db.dry_run:
                 logging.info("Dry-run: would %s session: %s (type: %s)",
                            "add new" if is_new_session else "use existing",
                            session_name, session_type)
@@ -143,7 +97,7 @@ def ingest_qtm_files(settings_file: str, base_dir: str, db: Database):
                            session_name, session_type)
 
         # Handle QTM record
-        if getattr(db, "dry_run", False):
+        if db.dry_run:
             logging.info("Dry-run: would add QTM record: %s (measurement: %s, repetition: %d)",
                         file_info.get("file_path"),
                         file_info.get("type"),
@@ -263,7 +217,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
     # Parse Settings.paf to get Project ID
-    settings = parse_settings_file(args.settings_file)
+    settings = parse_paf_file(args.settings_file)
     project_id = settings.project_id
 
     # Determine database name: CLI/.env takes precedence, else use Project ID
@@ -287,26 +241,22 @@ def main():
             "passphrase": args.ssh_passphrase,
         }
     
-    # Connect to database using resolved db_name
-    connection, tunnel = get_connection(
-        args.host,
-        args.port,
-        args.user,
-        args.password,
-        db_name,
-        ssh_config
+    # Create database instance using factory method
+    db = Database.create(
+        host=args.host,
+        port=args.port,
+        user=args.user,
+        password=args.password,
+        database=db_name,
+        ssh_config=ssh_config,
+        dry_run=getattr(args, "dry_run", False)
     )
     
     try:
-        db = Database(connection, settings)
-        # Attach dry_run flag to db for use in ingest_qtm_files
-        setattr(db, "dry_run", getattr(args, "dry_run", False))
         ingest_qtm_files(args.settings_file, args.base_dir, db)
         print("Ingestion completed successfully.")
     finally:
-        connection.close()
-        if tunnel:
-            tunnel.stop()
+        db.close()
 
 
 if __name__ == "__main__":
