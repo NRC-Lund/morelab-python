@@ -1,0 +1,14 @@
+name: morelab
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - mysql-connector-python
+    - sshtunnel
+    - python-dotenv
+    - pyyaml
+    - paramiko==3.5.1
+    - pyyaml
