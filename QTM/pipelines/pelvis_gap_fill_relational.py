@@ -203,18 +203,17 @@ def get_all_gap_ranges(id, total_frames):
     # Check for gap at end
     if sample_ranges[-1]["end"] < total_frames["end"]:
         all_gaps.append({"start": sample_ranges[-1]["end"], "end": total_frames["end"]})
-
     return all_gaps
 
 # Input missing marker plus start and end of gap to be filled. Function will assess and output the available reference markers to fill the gap.
 def ref_markers_available(missing_marker, marker_names, gap_start, gap_end):
-    ref_marker_names = [name for name in marker_names if name != missing_marker] # excludes missing marker from options as refence marker.
+    ref_marker_names = [name for name in marker_names if name != missing_marker] # excludes missing marker from options as reference marker.
     valid_markers = []
     for marker in ref_marker_names:
         traj_id = qtm.data.object.trajectory.find_trajectory(marker)
         valid_ranges = qtm.data.series._3d.get_sample_ranges(traj_id)
         for frame in valid_ranges:
-            if frame['start'] <= gap_start and frame['end'] >= gap_end:
+            if frame['start'] <= gap_start - 5 and frame['end'] + 5 >= gap_end: # ref marker must be present before and after gap too
                 valid_markers.append(marker)
                 break
     return valid_markers
@@ -227,10 +226,13 @@ def select_gap_fill_rule(missing_marker, valid_markers, gap_fill_rules):
             ref_markers = {"origin": None, "line": None, "plane": None}
             if len(rule) >= 1:
                 ref_markers["origin"] = qtm.data.object.trajectory.find_trajectory(rule[0])
+                origin = qtm.data.object.trajectory.get_label(ref_markers["origin"])
             if len(rule) >= 2:
                 ref_markers["line"] = qtm.data.object.trajectory.find_trajectory(rule[1])
+                line = qtm.data.object.trajectory.get_label(ref_markers["line"])
             if len(rule) >= 3:
                 ref_markers["plane"] = qtm.data.object.trajectory.find_trajectory(rule[2])
+                plane = qtm.data.object.trajectory.get_label(ref_markers["plane"])
 
             ref_markers = {k: v for k, v in ref_markers.items() if v is not None} # removes empty keys where only 1 or 2 marker options are identified
             return ref_markers  # First matching set of markers
@@ -271,6 +273,10 @@ def pelvis_gap_fill_relational():
             # check which reference markers are available
             valid_markers = ref_markers_available(marker, marker_names, gap_start, gap_end)
             ref_markers = select_gap_fill_rule(marker, valid_markers, gap_fill_rules)
+            if ref_markers == None:
+                print(f"No available reference markers to fill gap in {marker}. Skipping gap.")
+                continue
+            
             # use appropriate reference markers to fill the gap
             fill_gap(id, gap, ref_markers)
         print(f"{gaps_filled} gaps in {marker} were filled. {gaps_unfilled} gaps were not filled due to being longer than {max_range} frames")

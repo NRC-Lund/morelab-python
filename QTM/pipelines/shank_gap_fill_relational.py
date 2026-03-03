@@ -26,16 +26,16 @@ base_gap_fill_rules = {
                    
         # 2 marker options
         ["RShinFrontLow", "RShinSide"],                 
-        ["RShinFrontLow", "RKneeOut"],          
-        ["RShinSide", "RKneeOut"], 
-        ["RShinFrontLow", "RKneeIn"],
-        ["RShinSide", "RKneeIn"],                   
+        # ["RShinFrontLow", "RKneeOut"],          
+        # ["RShinSide", "RKneeOut"], 
+        # ["RShinFrontLow", "RKneeIn"],
+        # ["RShinSide", "RKneeIn"],                   
 
         # 1 marker options
         ["RShinFrontLow"],                          
         ["RShinSide"],
-        ["RKneeOut"],
-        ["RKneeIn"],
+        # ["RKneeOut"],
+        # ["RKneeIn"],
     ],
 
     "LShinFrontHigh": [
@@ -45,16 +45,16 @@ base_gap_fill_rules = {
                    
         # 2 marker options
         ["LShinFrontLow", "LShinSide"],                 
-        ["LShinFrontLow", "LKneeOut"],          
-        ["LShinSide", "LKneeOut"], 
-        ["LShinFrontLow", "LKneeIn"],
-        ["LShinSide", "LKneeIn"],                   
+        # ["LShinFrontLow", "LKneeOut"],          
+        # ["LShinSide", "LKneeOut"], 
+        # ["LShinFrontLow", "LKneeIn"],
+        # ["LShinSide", "LKneeIn"],                   
 
         # 1 marker options
         ["LShinFrontLow"],                          
         ["LShinSide"],
-        ["LKneeOut"],
-        ["LKneeIn"],
+        # ["LKneeOut"],
+        # ["LKneeIn"],
     ],
 
     "RShinFrontLow": [
@@ -64,16 +64,16 @@ base_gap_fill_rules = {
                    
         # 2 marker options
         ["RShinFrontHigh", "RShinSide"],                 
-        ["RShinFrontHigh", "RKneeOut"],          
-        ["RShinSide", "RKneeOut"], 
-        ["RShinFrontHigh", "RKneeIn"],
-        ["RShinSide", "RKneeIn"],                   
+        # ["RShinFrontHigh", "RKneeOut"],          
+        # ["RShinSide", "RKneeOut"], 
+        # ["RShinFrontHigh", "RKneeIn"],
+        # ["RShinSide", "RKneeIn"],                   
 
         # 1 marker options
         ["RShinFrontHigh"],                          
         ["RShinSide"],
-        ["RKneeOut"],
-        ["RKneeIn"],
+        # ["RKneeOut"],
+        # ["RKneeIn"],
     ],
 
     "LShinFrontLow": [
@@ -83,16 +83,16 @@ base_gap_fill_rules = {
                    
         # 2 marker options
         ["LShinFrontHigh", "LShinSide"],                 
-        ["LShinFrontHigh", "LKneeOut"],          
-        ["LShinSide", "LKneeOut"], 
-        ["LShinFrontHigh", "LKneeIn"],
-        ["LShinSide", "LKneeIn"],                   
+        # ["LShinFrontHigh", "LKneeOut"],          
+        # ["LShinSide", "LKneeOut"], 
+        # ["LShinFrontHigh", "LKneeIn"],
+        # ["LShinSide", "LKneeIn"],                   
 
         # 1 marker options
         ["LShinFrontHigh"],                          
         ["LShinSide"],
-        ["LKneeOut"],
-        ["LKneeIn"],
+        # ["LKneeOut"],
+        # ["LKneeIn"],
     ],
 
     "RShinSide": [
@@ -102,16 +102,16 @@ base_gap_fill_rules = {
                    
         # 2 marker options
         ["RShinFrontHigh", "RShinFrontLow"],                 
-        ["RShinFrontHigh", "RKneeOut"],          
-        ["RShinFrontLow", "RKneeOut"], 
-        ["RShinFrontHigh", "RKneeIn"],
-        ["RShinFrontLow", "RKneeIn"],                   
+        # ["RShinFrontHigh", "RKneeOut"],          
+        # ["RShinFrontLow", "RKneeOut"], 
+        # ["RShinFrontHigh", "RKneeIn"],
+        # ["RShinFrontLow", "RKneeIn"],                   
 
         # 1 marker options
         ["RShinFrontHigh"],                          
         ["RShinFrontLow"],
-        ["RKneeOut"],
-        ["RKneeIn"],
+        # ["RKneeOut"],
+        # ["RKneeIn"],
     ],
 
     "LShinSide": [
@@ -121,16 +121,36 @@ base_gap_fill_rules = {
                    
         # 2 marker options
         ["LShinFrontHigh", "LShinFrontLow"],                 
-        ["LShinFrontHigh", "LKneeOut"],          
-        ["LShinFrontLow", "LKneeOut"], 
-        ["LShinFrontHigh", "LKneeIn"],
-        ["LShinFrontLow", "LKneeIn"],                   
+        # ["LShinFrontHigh", "LKneeOut"],          
+        # ["LShinFrontLow", "LKneeOut"], 
+        # ["LShinFrontHigh", "LKneeIn"],
+        # ["LShinFrontLow", "LKneeIn"],                   
 
         # 1 marker options
         ["LShinFrontHigh"],                          
         ["LShinFrontLow"],
-        ["LKneeOut"],
+        # ["LKneeOut"],
+        # ["LKneeIn"],
+    ],
+
+    "RKneeOut": [
+        # 1 marker options
+        ["RKneeIn"],
+    ],
+
+    "LKneeOut": [
+        # 1 marker options
         ["LKneeIn"],
+    ],
+
+    "RKneeIn": [
+        # 1 marker options
+        ["RKneeOut"],
+    ],
+
+    "LKneeIn": [
+        # 1 marker options
+        ["LKneeOut"],
     ],
 
 }
@@ -159,7 +179,6 @@ def get_all_gap_ranges(id, total_frames):
     # Check for gap at end
     if sample_ranges[-1]["end"] < total_frames["end"]:
         all_gaps.append({"start": sample_ranges[-1]["end"], "end": total_frames["end"]})
-
     return all_gaps
 
 # Input missing marker plus start and end of gap to be filled. Function will assess and output the available reference markers to fill the gap.
@@ -181,15 +200,19 @@ def select_gap_fill_rule(missing_marker, valid_markers, gap_fill_rules):
     for rule in rules:
         if all(ref in valid_markers for ref in rule):
             ref_markers = {"origin": None, "line": None, "plane": None}
+            origin = line = plane = None
             if len(rule) >= 1:
                 ref_markers["origin"] = qtm.data.object.trajectory.find_trajectory(rule[0])
+                origin = qtm.data.object.trajectory.get_label(ref_markers["origin"])
             if len(rule) >= 2:
                 ref_markers["line"] = qtm.data.object.trajectory.find_trajectory(rule[1])
+                line = qtm.data.object.trajectory.get_label(ref_markers["line"])
             if len(rule) >= 3:
                 ref_markers["plane"] = qtm.data.object.trajectory.find_trajectory(rule[2])
+                plane = qtm.data.object.trajectory.get_label(ref_markers["plane"])
 
             ref_markers = {k: v for k, v in ref_markers.items() if v is not None} # removes empty keys where only 1 or 2 marker options are identified
-            return ref_markers  # First matching set of markers
+            return ref_markers, origin, line, plane  # First matching set of markers
     return None  # No valid rule found
 
 def fill_gap(id, gap, ref_markers):
@@ -208,25 +231,56 @@ def shank_gap_fill_relational():
 
     total_frames = qtm.gui.timeline.get_measured_range()
     for marker in marker_names:
+        print(f"Marker: {marker}")
         # find marker id based on label
         id = qtm.data.object.trajectory.find_trajectory(marker)
         # find gaps in marker
         gaps  = get_all_gap_ranges(id, total_frames)
         if not gaps:
-            print(f"No gaps detected in {marker}")
+            print(f"No gaps detected")
             continue # skips marker if it doesn't contain any gaps.
-        gaps_filled = len(gaps)
-        gaps_unfilled = 0
+        gaps_filled = 0
+        gaps_unfilled = len(gaps)
+        gaps_too_long = 0
+        gaps_no_rule = 0
+        gaps_poly = 0
+        gaps_relational = 0
+
         for gap in gaps:
             gap_start = gap["start"]
             gap_end = gap["end"]
+
+            # Fill small gaps using polynomial
+            if gap_end - gap_start < 10:
+                try:
+                    qtm.data.object.trajectory.fill_trajectory(id, "polynomial", gap)
+                    gaps_filled += 1
+                    gaps_unfilled -= 1
+                    gaps_poly += 1
+                    continue
+                except:
+                    pass
+
+            print(f"Gap identified. Frames: {gap_start} to {gap_end}")
             if gap["end"] - gap["start"] > max_range:
-                gaps_filled -= 1
-                gaps_unfilled += 1
+                gaps_too_long += 1
                 continue # skips gap if longer than 25 frames
+            
             # check which reference markers are available
             valid_markers = ref_markers_available(marker, marker_names, gap_start, gap_end)
-            ref_markers = select_gap_fill_rule(marker, valid_markers, gap_fill_rules)
+            rule = select_gap_fill_rule(marker, valid_markers, gap_fill_rules)
+            if rule is None:
+                print(f"No available gap-filling rule for {marker}. Skipping gap.")
+                gaps_no_rule += 1
+                continue
+            else:
+                ref_markers, origin, line, plane = rule
+            
             # use appropriate reference markers to fill the gap
             fill_gap(id, gap, ref_markers)
-        print(f"{gaps_filled} gaps in {marker} were filled. {gaps_unfilled} gaps were not filled due to being longer than {max_range} frames")
+            print(f"Gap filled using {origin}, {line} and {plane}")
+            gaps_filled -= 1
+            gaps_unfilled += 1
+            gaps_relational += 1
+
+        print(f"Gaps filled:{gaps_filled} (Polynomial: {gaps_poly}, Relational: {gaps_relational}). Gaps unfilled: {gaps_unfilled} (too long: {gaps_too_long}, no rule: {gaps_no_rule})")
