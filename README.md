@@ -15,7 +15,8 @@ In the folder QTM, we keep Python scripts for the Qualisys Track Manager softwar
    python -m pip install -r "C:\Users\MyName\Documents\Repositories\morelab-python\QTM\requirements.txt"
    ```
    This will download and install the necessary packages in your QTM Python environment.
-4. In QTM Project Options->Miscellaneous->Scripting, add the script "...\morelab-python\QTM\MoreLab-Scripting.py" to the list of script files.
+   > ⚠️ This step typically requires admin rights.
+5. In QTM Project Options->Miscellaneous->Scripting, add the script "...\morelab-python\QTM\MoreLab-Scripting.py" to the list of script files.
 
 
 
@@ -38,13 +39,13 @@ This requires a **reference distribution** generated from a well-labelled, repre
    - Open the recording you want to label.  
    - Select **Auto label everything**.  
    - When prompted, load the `.npz` reference distribution.
-   - ℹ️ The algorithm will first evaluate existing labels (removing poor ones) and then attempt to label previously unlabelled trajectories.  
+   > ℹ️ The algorithm will first evaluate existing labels (removing poor ones) and then attempt to label previously unlabelled trajectories.  
 
 3. **Handle short parts**  
    - Segments shorter than **20 frames** will *not* be labelled with **Auto label everything**.  
    - To label short segments, select them manually and run **Auto label selected trajectories (only if no overlap)**.  
-   - ℹ️ This method is more conservative because it does not remove existing labels.  
-   - 🔑 Recommended: Use this for all parts longer than **5 frames**.  
+   > ℹ️ This method is more conservative because it does not remove existing labels.  
+   > 🔑 Recommended: Use this for all parts longer than **5 frames**.  
 
 4. **Refill gaps**  
    Auto-labelling will undo any gap filling. To restore gaps:  
