@@ -20,10 +20,8 @@ import pipelines.apply_aim_model
 importlib.reload(pipelines.apply_aim_model) # Reload to clear cache.
 import pipelines.breakdown_trajectories
 importlib.reload(pipelines.breakdown_trajectories) # Reload to clear cache.
-import pipelines.split_trajectory_at_spikes
-importlib.reload(pipelines.split_trajectory_at_spikes) # Reload to clear cache.
-from pipelines.workflow import workflow
-importlib.reload(pipelines.workflow) # Reload to clear cache.
+import pipelines.skeleton_solver_workflow
+importlib.reload(pipelines.skeleton_solver_workflow) # Reload to clear cache.
 
 MENU_NAME = "Test"
 
@@ -34,8 +32,7 @@ def _setup_commands():
         ("Select Unidentified Markers", pipelines.select_unidentified_markers.select_unidentified_markers),
         ("Apply Aim Model to Unidentified Trajectories", pipelines.apply_aim_model.apply_aim_model),
         ("Breakdown Selected Trajectories into Parts", pipelines.breakdown_trajectories.breakdown_trajectories),
-        ("Split Trajectories at Spikes", pipelines.split_trajectory_at_spikes.split_trajectory_at_spikes),
-        ("Workflow", pipelines.workflow.workflow)
+        ("Batch Process Skeleton Solving", pipelines.skeleton_solver_workflow.main)
     ]
     for label, fn in cmds:
         qtm.gui.add_command(label)
@@ -48,8 +45,7 @@ def _setup_menu():
     add_menu_item(mid, "Select Unidentified Markers", "Select Unidentified Markers")
     add_menu_item(mid, "Apply Aim Model to Unidentified Trajectories", "Apply Aim Model to Unidentified Trajectories")
     add_menu_item(mid, "Breakdown Selected Trajectories into Parts", "Breakdown Selected Trajectories into Parts")
-    add_menu_item(mid, "Split Trajectories at Spikes", "Split Trajectories at Spikes")
-    add_menu_item(mid, "Workflow", "Workflow")
+    add_menu_item(mid, "Batch Process Skeleton Solving", "Batch Process Skeleton Solving")
 
 def _add_shortcut():
     ctrl_u = {"ctrl": True, "alt": False, "shift": False, "key": "u"}
