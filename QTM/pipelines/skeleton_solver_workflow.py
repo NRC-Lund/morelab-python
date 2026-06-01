@@ -1,138 +1,243 @@
-import qtm
 import os
+import time
+
+import qtm
+
+
+STATE_FILE = os.path.join(os.path.dirname(__file__), "skeleton_solver_workflow_state.txt")
+
+
+def log(message: str):
+    print(f"{time.strftime('%H:%M:%S')} {message}")
+
+
+def show_message(title: str, message: str):
+    try:
+        qtm.gui.message.add_message(title, message, "info")
+    except (AttributeError, RuntimeError):
+        log(f"{title}: {message}")
+
+
+def load_last_static_file():
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as state_file:
+            static_file = state_file.read().strip()
+    except OSError:
+        return ""
+
+    if os.path.isfile(static_file):
+        return static_file
+
+    return ""
+
+
+def save_last_static_file(static_file: str):
+    try:
+        with open(STATE_FILE, "w", encoding="utf-8") as state_file:
+            state_file.write(static_file)
+    except OSError:
+        pass
+
+
+def get_initial_folder():
+    static_file = load_last_static_file()
+
+    if static_file:
+        return os.path.dirname(static_file)
+
+    return os.path.expanduser("~")
+
+
+def select_static_file(initial_folder: str):
+    title = "Select static trial"
+    filters = ["QTM files (*.qtm)"]
+    static = qtm.gui.dialog.show_open_file_dialog(
+        title,
+        filters,
+        False,
+        initial_folder,
+    )
+
+    if isinstance(static, (list, tuple)):
+        return static[0] if static else ""
+
+    return static or ""
+
 
 def set_prefix(new_prefix):
     ids = qtm.data.object.trajectory.get_trajectory_ids()
-    for id in ids:
-        label = qtm.data.object.trajectory.get_label(id)
+
+    for trajectory_id in ids:
+        label = qtm.data.object.trajectory.get_label(trajectory_id)
 
         if not label:
             continue
 
         parts = label.split("_", 1)
-
-        # remove existing prefix if present
         suffix = parts[1] if len(parts) > 1 else parts[0]
-        new_label = f"{new_prefix}_{suffix}"
-        qtm.data.object.trajectory.set_label(id, new_label)
+        qtm.data.object.trajectory.set_label(trajectory_id, f"{new_prefix}_{suffix}")
 
-def calibrate_skeleton_new_prefix(file: str) -> tuple[str, str]:
+
+def get_current_prefix():
+    ids = qtm.data.object.trajectory.get_trajectory_ids()
+    labels = [
+        qtm.data.object.trajectory.get_label(trajectory_id)
+        for trajectory_id in ids
+        if qtm.data.object.trajectory.get_label(trajectory_id)
+    ]
+
+    if not labels:
+        return ""
+
+    return labels[0].split("_", 1)[0]
+
+
+def prepare_static_file(file: str) -> tuple[str, str]:
     if qtm.file.is_open():
+        log("Closing previously open file")
         qtm.file.close()
 
+    log(f"Opening static trial: {file}")
     qtm.file.open(file)
     path = os.path.dirname(qtm.file.get_path())
 
-    ids = qtm.data.object.trajectory.get_trajectory_ids()
-    labels = [qtm.data.object.trajectory.get_label(id) for id in ids if qtm.data.object.trajectory.get_label(id)]
-    current_prefix = [label.split("_")[0] for label in labels][0]
-
-    #ask to change prefix if necessary
+    current_prefix = get_current_prefix()
     new_prefix = qtm.gui.dialog.show_string_input_dialog(
-    "Set prefix",
-    f"Change prefix to:\nCurrent path: {path}",
-    current_prefix
-)
-    
+        "Set prefix",
+        f"Change prefix to:\nCurrent path: {path}",
+        current_prefix,
+    )
+
+    if not new_prefix:
+        qtm.file.close()
+        return "", path
+
     set_prefix(new_prefix)
 
-    print(f"Use {new_prefix} prefix")
+    log(f"Using prefix: {new_prefix}")
+    log("Saving static trial before calibration")
     qtm.file.save()
+    log("Static trial prepared and saved")
+    save_last_static_file(file)
+
+    log("Starting skeleton calibration command")
     qtm.gui.send_command("calibrate_skeletons")
+    log("Skeleton calibration command started")
 
-    while True:
-        #wait that the dialog box is closed
-        try:
-            if qtm.file.is_dirty():
-                #sqve only when the calibration is finished
-                qtm.file.save()
-                break
-        except RuntimeError:
-            pass
-
-    qtm.file.close()
+    show_message(
+        "Static calibration started",
+        "When QTM finishes skeleton calibration, save the static file manually. "
+        "Then run this script again and choose Solve dynamics.",
+    )
 
     return new_prefix, path
 
-def solve_skeletons(file: str, new_prefix: str):
+
+def get_static_prefix_and_path(file: str) -> tuple[str, str]:
     if qtm.file.is_open():
+        log("Closing previously open file")
         qtm.file.close()
 
+    log(f"Opening calibrated static trial: {file}")
+    qtm.file.open(file)
+    path = os.path.dirname(qtm.file.get_path())
+    prefix = get_current_prefix()
+    log(f"Using prefix from calibrated static trial: {prefix}")
+
+    qtm.file.close()
+    log("Calibrated static trial closed")
+
+    return prefix, path
+
+
+def solve_skeletons(file: str, new_prefix: str):
+    if qtm.file.is_open():
+        log("Closing previously open file")
+        qtm.file.close()
+
+    log(f"Opening dynamic trial: {file}")
     qtm.file.open(file)
 
-
-    # change prefix to match static trial
     set_prefix(new_prefix)
 
-    # solve skeleton using skeleton instance calibrated in static trial
+    log(f"Solving skeletons for dynamic trial: {file}")
     settings = qtm.settings.processing.skeleton.get_settings("project")
     qtm.processing.solve_skeletons(settings)
-    
-    qtm.file.save()
-    qtm.file.close()
+    log(f"Skeleton solving complete: {file}")
 
-# -------------------------------------------------
-# MAIN WORKFLOW
-# -------------------------------------------------
+    log(f"Saving dynamic trial: {file}")
+    qtm.file.save()
+    log(f"Dynamic trial saved: {file}")
+
+    log(f"Closing dynamic trial: {file}")
+    qtm.file.close()
+    log(f"Dynamic trial closed: {file}")
+
 
 def main():
+    log("Starting skeleton solver workflow")
 
-    parent_folder = qtm.gui.dialog.show_string_input_dialog(
-    "Parent data folder",
-    "Paste the path to the parent data folder:",
-    os.path.expanduser("~")
-)
-
-    if not parent_folder:
-        return
-
-    parent_folder = parent_folder.strip()
-
-    if not os.path.isdir(parent_folder):
-        qtm.gui.dialog.show_message_box(
-        "Invalid path",
-        f"{parent_folder} is not a valid directory."
-    )
-        return
-    
     while True:
-    
-    # Select static file
-        title = "Select static trial for skeleton calibration"
-        filters = ["QTM files (*.qtm)"]
-        multiselect = False
-        static = qtm.gui.dialog.show_open_file_dialog(title, filters, multiselect, parent_folder)
+        last_static_file = load_last_static_file()
+        workflow = qtm.gui.dialog.show_message_box(
+            "Skeleton solver workflow",
+            "Choose workflow step.",
+            ["Prepare static", "Solve dynamics", "Cancel"],
+        )
+
+        if workflow == "Cancel":
+            return
+
+        if workflow == "Solve dynamics" and last_static_file:
+            use_last = qtm.gui.dialog.show_message_box(
+                "Static trial",
+                f"Use previous static trial?\n{last_static_file}",
+                ["Yes", "Select different", "Cancel"],
+            )
+
+            if use_last == "Cancel":
+                return
+
+            static = last_static_file if use_last == "Yes" else select_static_file(get_initial_folder())
+        else:
+            static = select_static_file(get_initial_folder())
 
         if not static:
             return
 
-        if isinstance(static, (list, tuple)):
-            static = static[0]
+        save_last_static_file(static)
 
-        # open static file, change prefix, calibrate skeleton, save
-        new_prefix, path = calibrate_skeleton_new_prefix(static)
+        if workflow == "Prepare static":
+            new_prefix, _ = prepare_static_file(static)
 
-        # select dynamic trials
+            if not new_prefix:
+                return
+
+            return
+
+        new_prefix, path = get_static_prefix_and_path(static)
+
         title = "Select dynamic trials for skeleton solving"
         filters = ["QTM files (*.qtm)"]
-        multiselect = True
-        dynamic_trials = qtm.gui.dialog.show_open_file_dialog(title, filters, multiselect, path)
+        dynamic_trials = qtm.gui.dialog.show_open_file_dialog(
+            title,
+            filters,
+            True,
+            path,
+        )
 
         if not dynamic_trials:
             return
 
-        # Loop through dyanimc trials and solve skeletons
         for trial in dynamic_trials:
             solve_skeletons(trial, new_prefix)
 
-        # ---- Ask whether to process another participant ----
+        log("Participant complete")
         again = qtm.gui.dialog.show_message_box(
             "Participant complete",
             "Process another participant?",
-            ["Yes", "No"]
+            ["Yes", "No"],
         )
 
         if again != "Yes":
             break
-
-
