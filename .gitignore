@@ -182,3 +182,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+QTM/pipelines/skeleton_solver_workflow_state.txt
