@@ -47,14 +47,24 @@ import pipelines.custom_filters
 importlib.reload(pipelines.custom_filters) # Reload to clear cache.
 import pipelines.remove_spikes
 importlib.reload(pipelines.remove_spikes) # Reload to clear cache.
+import pipelines.gap_fill_relational
+importlib.reload(pipelines.gap_fill_relational) # Reload shared gap-filling logic.
 import pipelines.pelvis_gap_fill_relational
 importlib.reload(pipelines.pelvis_gap_fill_relational) # Reload to clear cache.
+import pipelines.head_gap_fill_relational
+importlib.reload(pipelines.head_gap_fill_relational) # Reload to clear cache.
+import pipelines.torso_gap_fill_relational
+importlib.reload(pipelines.torso_gap_fill_relational) # Reload to clear cache.
+import pipelines.arm_gap_fill_relational
+importlib.reload(pipelines.arm_gap_fill_relational) # Reload to clear cache.
 import pipelines.thigh_gap_fill_relational
 importlib.reload(pipelines.thigh_gap_fill_relational) # Reload to clear cache.
 import pipelines.shank_gap_fill_relational
 importlib.reload(pipelines.shank_gap_fill_relational) # Reload to clear cache.
 import pipelines.foot_gap_fill_relational
 importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
+import pipelines.full_body_gap_fill_relational
+importlib.reload(pipelines.full_body_gap_fill_relational) # Reload to clear cache.
 from pipelines.auto_label import \
     gui_generate_reference_distribution, \
     gui_auto_label_everything, \
@@ -78,9 +88,13 @@ def _setup_commands():
         ("Fix SIPS", pipelines.fix_sips.fix_sips),
         ("Remove Spikes", pipelines.remove_spikes.remove_spikes),
         ("Fill Gaps in Pelvis (Relational)", pipelines.pelvis_gap_fill_relational.pelvis_gap_fill_relational),
+        ("Fill Gaps in Head (Relational)", pipelines.head_gap_fill_relational.head_gap_fill_relational),
+        ("Fill Gaps in Torso (Relational)", pipelines.torso_gap_fill_relational.torso_gap_fill_relational),
+        ("Fill Gaps in Arm (Relational)", pipelines.arm_gap_fill_relational.arm_gap_fill_relational),
         ("Fill Gaps in Thigh (Relational)", pipelines.thigh_gap_fill_relational.thigh_gap_fill_relational),
         ("Fill Gaps in Shank (Relational)", pipelines.shank_gap_fill_relational.shank_gap_fill_relational),
         ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
+        ("Fill Gaps in Full Body (Relational)", pipelines.full_body_gap_fill_relational.full_body_gap_fill_relational),
         ("Generate reference distribution", gui_generate_reference_distribution),
         ("Auto label everything", gui_auto_label_everything),
         ("Auto label labelled", gui_auto_label_labelled),
@@ -108,10 +122,14 @@ def _setup_menu():
     add_menu_item(amid, "Dynamic Calibration", "Dynamic calibration")
     add_menu_item(mid, "Fix SIPS markers", "Fix SIPS")
     add_menu_item(mid, "Remove Spikes", "Remove Spikes")
+    add_menu_item(gmid, "Head", "Fill Gaps in Head (Relational)")
     add_menu_item(gmid, "Pelvis", "Fill Gaps in Pelvis (Relational)")
+    add_menu_item(gmid, "Torso", "Fill Gaps in Torso (Relational)")
+    add_menu_item(gmid, "Arm & Hand", "Fill Gaps in Arm (Relational)")
     add_menu_item(gmid, "Thigh", "Fill Gaps in Thigh (Relational)")
     add_menu_item(gmid, "Shank", "Fill Gaps in Shank (Relational)")
     add_menu_item(gmid, "Foot", "Fill Gaps in Foot (Relational)")
+    add_menu_item(gmid, "Full Body", "Fill Gaps in Full Body (Relational)")
     add_menu_item(lmid, "Generate reference distribution", "Generate reference distribution")
     add_menu_item(lmid, "Auto label everything", "Auto label everything")
     add_menu_item(lmid, "Auto label labelled", "Auto label labelled")
