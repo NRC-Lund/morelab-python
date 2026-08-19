@@ -43,8 +43,10 @@ import pipelines.calibrations
 importlib.reload(pipelines.calibrations) # Reload to clear cache.
 import pipelines.other
 importlib.reload(pipelines.other) # Reload to clear cache.
-import pipelines.custom_filters
-importlib.reload(pipelines.custom_filters) # Reload to clear cache.
+import pipelines.marker_filtering
+importlib.reload(pipelines.marker_filtering) # Reload to clear cache.
+import pipelines.batch_marker_filtering
+importlib.reload(pipelines.batch_marker_filtering) # Reload to clear cache.
 import pipelines.remove_spikes
 importlib.reload(pipelines.remove_spikes) # Reload to clear cache.
 import pipelines.gap_fill_relational
@@ -82,7 +84,9 @@ MENU_NAME = "MoreLab"
 
 def _setup_commands():
     cmds = [
-        ("Custom Filter", pipelines.custom_filters.apply_butterworth_filter),
+        ("Apply Butterworth Filter to Marker Set", pipelines.marker_filtering.apply_butterworth_filter_to_marker_set),
+        ("Apply Butterworth Filter to Selected Trajectories", pipelines.marker_filtering.apply_butterworth_filter_to_selected_trajectories),
+        ("Batch Process Marker Filtering", pipelines.batch_marker_filtering.batch_process_marker_filtering),
         ("Static calibration", pipelines.calibrations.static_calibration),
         ("Dynamic calibration", pipelines.calibrations.dynamic_calibration),
         ("Fix SIPS", pipelines.fix_sips.fix_sips),
@@ -116,8 +120,9 @@ def _setup_menu():
     gmid = qtm.gui.insert_menu_submenu(mid, "Gap Filling (Relational)", None)
     lmid = qtm.gui.insert_menu_submenu(mid, "Auto label", None)
 
-    add_menu_item(fmid, "Apply Butterworth Filter", "Custom Filter")
-    # add_menu_item(fmid, "Apply ForcePlate Filter", "Custom Force Plate Filter")
+    add_menu_item(fmid, "Apply Butterworth Filter to Marker Set", "Apply Butterworth Filter to Marker Set")
+    add_menu_item(fmid, "Apply Butterworth Filter to Selected Trajectories", "Apply Butterworth Filter to Selected Trajectories")
+    add_menu_item(fmid, "Batch Process Marker Filtering", "Batch Process Marker Filtering")
     add_menu_item(amid, "Static Calibration", "Static calibration")
     add_menu_item(amid, "Dynamic Calibration", "Dynamic calibration")
     add_menu_item(mid, "Fix SIPS markers", "Fix SIPS")
