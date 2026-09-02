@@ -32,15 +32,16 @@ def get_all_gap_ranges(trajectory_id, measured_range):
     return gaps
 
 
-def get_available_references(marker, marker_names, gap, margin):
+def get_available_references(marker, marker_names, gap, margin, measured_range):
+    start = max(measured_range["start"], gap["start"] - margin)
+    end = min(measured_range["end"], gap["end"] + margin)
     available = []
     for reference in marker_names:
         if reference == marker:
             continue
         trajectory_id = qtm.data.object.trajectory.find_trajectory(reference)
         for sample in qtm.data.series._3d.get_sample_ranges(trajectory_id):
-            if (sample["start"] <= gap["start"] - margin
-                    and sample["end"] >= gap["end"] + margin):
+            if sample["start"] <= start and sample["end"] >= end:
                 available.append(reference)
                 break
     return available
@@ -82,7 +83,6 @@ def gap_fill_relational(
             continue
 
         filled = polynomial = relational = too_long = no_rule = 0
-        polynomial_unavailable = 0
 
         for gap in gaps:
             gap_length = gap["end"] - gap["start"]
@@ -95,18 +95,18 @@ def gap_fill_relational(
                 except RuntimeError as error:
                     if "polynomial fill requires two samples" not in str(error):
                         raise
-                    polynomial_unavailable += 1
                     print(
-                        f"{marker}: skipped {gap['start']}-{gap['end']}; "
-                        "polynomial fill needs samples before and after"
+                        f"{marker}: polynomial unavailable for "
+                        f"{gap['start']}-{gap['end']}; trying relational"
                     )
-                continue
+                else:
+                    continue
             if gap_length > max_gap_length:
                 too_long += 1
                 continue
 
             available = get_available_references(
-                marker, marker_names, gap, reference_margin)
+                marker, marker_names, gap, reference_margin, measured_range)
             selected_rule = select_gap_fill_rule(
                 marker, available, gap_fill_rules)
             if selected_rule is None:
@@ -123,7 +123,6 @@ def gap_fill_relational(
         print(
             f"{marker}: {filled} filled "
             f"({polynomial} polynomial, {relational} relational); "
-            f"{too_long + no_rule + polynomial_unavailable} unfilled "
-            f"({too_long} too long, {no_rule} without a rule, "
-            f"{polynomial_unavailable} polynomial unavailable)"
+            f"{too_long + no_rule} unfilled "
+            f"({too_long} too long, {no_rule} without a rule)"
         )
