@@ -67,6 +67,8 @@ import pipelines.foot_gap_fill_relational
 importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
 import pipelines.full_body_gap_fill_relational
 importlib.reload(pipelines.full_body_gap_fill_relational) # Reload to clear cache.
+import pipelines.missing_markers
+importlib.reload(pipelines.missing_markers) # Reload to clear cache.
 from pipelines.auto_label import \
     gui_generate_reference_distribution, \
     gui_auto_label_everything, \
@@ -99,6 +101,7 @@ def _setup_commands():
         ("Fill Gaps in Shank (Relational)", pipelines.shank_gap_fill_relational.shank_gap_fill_relational),
         ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
         ("Fill Gaps in Full Body (Relational)", pipelines.full_body_gap_fill_relational.full_body_gap_fill_relational),
+        ("Create Missing Marker from Static Trial", pipelines.missing_markers.create_missing_marker_from_static_trial),
         ("Generate reference distribution", gui_generate_reference_distribution),
         ("Auto label everything", gui_auto_label_everything),
         ("Auto label labelled", gui_auto_label_labelled),
@@ -116,15 +119,14 @@ def _setup_commands():
 def _setup_menu():
     mid = qtm.gui.insert_menu_submenu(None, MENU_NAME, None)
     fmid = qtm.gui.insert_menu_submenu(mid, "Filters", None)
-    amid = qtm.gui.insert_menu_submenu(mid, "Add trajectory", None)
+    mmid = qtm.gui.insert_menu_submenu(mid, "Missing Markers", None)
     gmid = qtm.gui.insert_menu_submenu(mid, "Gap Filling (Relational)", None)
     lmid = qtm.gui.insert_menu_submenu(mid, "Auto label", None)
 
     add_menu_item(fmid, "Apply Butterworth Filter to Marker Set", "Apply Butterworth Filter to Marker Set")
     add_menu_item(fmid, "Apply Butterworth Filter to Selected Trajectories", "Apply Butterworth Filter to Selected Trajectories")
     add_menu_item(fmid, "Batch Process Marker Filtering", "Batch Process Marker Filtering")
-    add_menu_item(amid, "Static Calibration", "Static calibration")
-    add_menu_item(amid, "Dynamic Calibration", "Dynamic calibration")
+    add_menu_item(mmid, "Create Missing Marker from Static Trial", "Create Missing Marker from Static Trial")
     add_menu_item(mid, "Fix SIPS markers", "Fix SIPS")
     add_menu_item(mid, "Remove Spikes", "Remove Spikes")
     add_menu_item(gmid, "Head", "Fill Gaps in Head (Relational)")
