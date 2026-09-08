@@ -13,6 +13,14 @@ def add_marker_prefix(marker_names, gap_fill_rules, prefix):
     return marker_names, gap_fill_rules
 
 
+def get_marker_prefix():
+    for trajectory_id in qtm.data.object.trajectory.get_trajectory_ids():
+        label = qtm.data.object.trajectory.get_label(trajectory_id)
+        if label and "_" in label:
+            return label.split("_")[0] + "_"
+    return ""
+
+
 def get_all_gap_ranges(trajectory_id, measured_range):
     gaps = list(qtm.data.series._3d.get_gap_ranges(trajectory_id))
     samples = qtm.data.series._3d.get_sample_ranges(trajectory_id)
@@ -40,6 +48,8 @@ def get_available_references(marker, marker_names, gap, margin, measured_range):
         if reference == marker:
             continue
         trajectory_id = qtm.data.object.trajectory.find_trajectory(reference)
+        if trajectory_id is None:
+            continue
         for sample in qtm.data.series._3d.get_sample_ranges(trajectory_id):
             if sample["start"] <= start and sample["end"] >= end:
                 available.append(reference)
@@ -58,25 +68,20 @@ def select_gap_fill_rule(marker, available, gap_fill_rules):
     return None
 
 
-def gap_fill_relational(
+def gap_fill_relational_pass(
         marker_names,
         gap_fill_rules,
         max_gap_length=25,
         polynomial_threshold=10,
-        reference_margin=5,
-        ask_max_gap_length=True):
-    if ask_max_gap_length:
-        value = qtm.gui.dialog.show_string_input_dialog(
-            "Max gap fill range",
-            "What is the max gap length (in frames) you'd like to fill?",
-            str(max_gap_length),
-        )
-        max_gap_length = max_gap_length if value is None else int(value)
-
+        reference_margin=5):
     measured_range = qtm.gui.timeline.get_measured_range()
+    total_filled = 0
 
     for marker in marker_names:
         trajectory_id = qtm.data.object.trajectory.find_trajectory(marker)
+        if trajectory_id is None:
+            print(f"{marker}: marker not found")
+            continue
         gaps = get_all_gap_ranges(trajectory_id, measured_range)
         if not gaps:
             print(f"{marker}: no gaps detected")
@@ -126,3 +131,44 @@ def gap_fill_relational(
             f"{too_long + no_rule} unfilled "
             f"({too_long} too long, {no_rule} without a rule)"
         )
+        total_filled += filled
+
+    return total_filled
+
+
+def gap_fill_relational(
+        base_marker_names,
+        base_gap_fill_rules,
+        max_gap_length=25,
+        polynomial_threshold=10,
+        reference_margin=5,
+        ask_max_gap_length=True,
+        max_passes=3):
+    if ask_max_gap_length:
+        value = qtm.gui.dialog.show_string_input_dialog(
+            "Max gap fill range",
+            "What is the max gap length (in frames) you'd like to fill?",
+            str(max_gap_length),
+        )
+        max_gap_length = max_gap_length if value is None else int(value)
+
+    marker_names, gap_fill_rules = add_marker_prefix(
+        base_marker_names, base_gap_fill_rules, get_marker_prefix())
+
+    total_filled = 0
+    for pass_number in range(1, max_passes + 1):
+        print(f"--- Pass {pass_number} ---")
+        filled_this_pass = gap_fill_relational_pass(
+            marker_names,
+            gap_fill_rules,
+            max_gap_length,
+            polynomial_threshold,
+            reference_margin,
+        )
+        total_filled += filled_this_pass
+        print(f"Pass {pass_number}: {filled_this_pass} gaps filled")
+        if filled_this_pass == 0:
+            print("No new gaps filled; stopping.")
+            break
+
+    return total_filled

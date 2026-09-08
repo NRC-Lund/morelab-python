@@ -1,4 +1,4 @@
-from .gap_fill_relational import add_marker_prefix, gap_fill_relational
+from .gap_fill_relational import gap_fill_relational
 
 
 # -------------------- Marker Definitions -------------------- #
@@ -123,9 +123,5 @@ base_gap_fill_rules = {
 
 }
 
-marker_names, gap_fill_rules = add_marker_prefix(
-    base_marker_names, base_gap_fill_rules, "Q_")
-
-
 def thigh_gap_fill_relational():
-    gap_fill_relational(marker_names, gap_fill_rules)
+    gap_fill_relational(base_marker_names, base_gap_fill_rules)

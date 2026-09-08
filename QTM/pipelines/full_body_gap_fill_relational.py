@@ -1,5 +1,3 @@
-import qtm
-
 from .gap_fill_relational import gap_fill_relational
 from . import head_gap_fill_relational
 from . import torso_gap_fill_relational
@@ -22,18 +20,15 @@ segments = [
 
 
 def full_body_gap_fill_relational():
-    value = qtm.gui.dialog.show_string_input_dialog(
-        "Max gap fill range",
-        "What is the max gap length (in frames) you'd like to fill?",
-        "25",
-    )
-    max_gap_length = 25 if value is None else int(value)
+    marker_names = []
+    gap_fill_rules = {}
 
-    for name, segment in segments:
-        print(f"--- {name} ---")
-        gap_fill_relational(
-            segment.marker_names,
-            segment.gap_fill_rules,
-            max_gap_length=max_gap_length,
-            ask_max_gap_length=False,
-        )
+    for _, segment in segments:
+        marker_names += [
+            marker for marker in segment.base_marker_names
+            if marker not in marker_names
+        ]
+        for marker, rules in segment.base_gap_fill_rules.items():
+            gap_fill_rules.setdefault(marker, []).extend(rules)
+
+    gap_fill_relational(marker_names, gap_fill_rules)
