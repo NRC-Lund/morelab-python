@@ -37,18 +37,10 @@ from helpers.printing import try_print_except
 from helpers.menu_tools import add_menu_item
 
 # Import MoRe-Lab modules
-import pipelines.fix_sips
-importlib.reload(pipelines.fix_sips) # Reload to clear cache.
-import pipelines.calibrations
-importlib.reload(pipelines.calibrations) # Reload to clear cache.
-import pipelines.other
-importlib.reload(pipelines.other) # Reload to clear cache.
 import pipelines.marker_filtering
 importlib.reload(pipelines.marker_filtering) # Reload to clear cache.
 import pipelines.batch_marker_filtering
 importlib.reload(pipelines.batch_marker_filtering) # Reload to clear cache.
-import pipelines.remove_spikes
-importlib.reload(pipelines.remove_spikes) # Reload to clear cache.
 import pipelines.gap_fill_relational
 importlib.reload(pipelines.gap_fill_relational) # Reload shared gap-filling logic.
 import pipelines.pelvis_gap_fill_relational
@@ -67,20 +59,20 @@ import pipelines.foot_gap_fill_relational
 importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
 import pipelines.full_body_gap_fill_relational
 importlib.reload(pipelines.full_body_gap_fill_relational) # Reload to clear cache.
+import pipelines.missing_marker_detection
+importlib.reload(pipelines.missing_marker_detection) # Reload to clear cache.
+import pipelines.missing_marker_dialogs
+importlib.reload(pipelines.missing_marker_dialogs) # Reload to clear cache.
+import pipelines.missing_marker_reconstruction
+importlib.reload(pipelines.missing_marker_reconstruction) # Reload to clear cache.
+import pipelines.missing_marker_skeleton
+importlib.reload(pipelines.missing_marker_skeleton) # Reload to clear cache.
+import pipelines.missing_marker_helpers
+importlib.reload(pipelines.missing_marker_helpers) # Reload to clear cache.
 import pipelines.missing_markers
 importlib.reload(pipelines.missing_markers) # Reload to clear cache.
-from pipelines.auto_label import \
-    gui_generate_reference_distribution, \
-    gui_auto_label_everything, \
-    gui_auto_label_labelled, \
-    gui_auto_label_unlabelled, \
-    gui_auto_label_selected_trajectories, \
-    gui_remove_spikes, \
-    gui_generate_sal_ref, \
-    gui_sal
+import pipelines.auto_label
 importlib.reload(pipelines.auto_label) # Reload to clear cache.
-
-from pipelines.batch_calibration import batch_calibrate_skeletons
 
 MENU_NAME = "MoreLab"
 
@@ -89,10 +81,6 @@ def _setup_commands():
         ("Apply Butterworth Filter to Marker Set", pipelines.marker_filtering.apply_butterworth_filter_to_marker_set),
         ("Apply Butterworth Filter to Selected Trajectories", pipelines.marker_filtering.apply_butterworth_filter_to_selected_trajectories),
         ("Batch Process Marker Filtering", pipelines.batch_marker_filtering.batch_process_marker_filtering),
-        ("Static calibration", pipelines.calibrations.static_calibration),
-        ("Dynamic calibration", pipelines.calibrations.dynamic_calibration),
-        ("Fix SIPS", pipelines.fix_sips.fix_sips),
-        ("Remove Spikes", pipelines.remove_spikes.remove_spikes),
         ("Fill Gaps in Pelvis (Relational)", pipelines.pelvis_gap_fill_relational.pelvis_gap_fill_relational),
         ("Fill Gaps in Head (Relational)", pipelines.head_gap_fill_relational.head_gap_fill_relational),
         ("Fill Gaps in Torso (Relational)", pipelines.torso_gap_fill_relational.torso_gap_fill_relational),
@@ -102,15 +90,13 @@ def _setup_commands():
         ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
         ("Fill Gaps in Full Body (Relational)", pipelines.full_body_gap_fill_relational.full_body_gap_fill_relational),
         ("Create Missing Marker from Static Trial", pipelines.missing_markers.create_missing_marker_from_static_trial),
-        ("Generate reference distribution", gui_generate_reference_distribution),
-        ("Auto label everything", gui_auto_label_everything),
-        ("Auto label labelled", gui_auto_label_labelled),
-        ("Auto label unlabelled", gui_auto_label_unlabelled),
-        ("Auto label selected trajectories", gui_auto_label_selected_trajectories),
-        ("Remove spikes and fill", gui_remove_spikes),
-        ("Generate SAL reference distribution", gui_generate_sal_ref),
-        ("Batch calibrate skeleton", batch_calibrate_skeletons),
-        ("SAL", gui_sal),
+        ("Generate reference distribution", pipelines.auto_label.gui_generate_reference_distribution),
+        ("Auto label everything", pipelines.auto_label.gui_auto_label_everything),
+        ("Auto label labelled", pipelines.auto_label.gui_auto_label_labelled),
+        ("Auto label unlabelled", pipelines.auto_label.gui_auto_label_unlabelled),
+        ("Auto label selected trajectories", pipelines.auto_label.gui_auto_label_selected_trajectories),
+        ("Generate SAL reference distribution", pipelines.auto_label.gui_generate_sal_ref),
+        ("SAL", pipelines.auto_label.gui_sal),
     ]
     for label, fn in cmds:
         qtm.gui.add_command(label)
@@ -127,8 +113,6 @@ def _setup_menu():
     add_menu_item(fmid, "Apply Butterworth Filter to Selected Trajectories", "Apply Butterworth Filter to Selected Trajectories")
     add_menu_item(fmid, "Batch Process Marker Filtering", "Batch Process Marker Filtering")
     add_menu_item(mmid, "Create Missing Marker from Static Trial", "Create Missing Marker from Static Trial")
-    add_menu_item(mid, "Fix SIPS markers", "Fix SIPS")
-    add_menu_item(mid, "Remove Spikes", "Remove Spikes")
     add_menu_item(gmid, "Head", "Fill Gaps in Head (Relational)")
     add_menu_item(gmid, "Pelvis", "Fill Gaps in Pelvis (Relational)")
     add_menu_item(gmid, "Torso", "Fill Gaps in Torso (Relational)")

@@ -3,17 +3,22 @@ import os
 import qtm
 
 from .missing_marker_helpers import (
+    apply_marker_based_reconstructions,
+    apply_skeleton_based_reconstructions,
+    confirm_skeleton_reconstructions,
     format_marker_summary,
+    get_marker_reconstruction_options,
+    get_skeleton_reconstruction_options,
     open_dynamic_trial,
-    report_static_marker_relationships,
+    report_reconstruction_methods,
     save_or_continue,
     scan_missing_markers,
     select_qtm_file,
 )
 
 
-# Select a dynamic trial, identify missing/almost-missing markers, select the
-# matching static trial, and report available static marker relationships.
+# Select dynamic/static trials, classify missing markers, and apply available
+# marker-based or skeleton-based reconstruction.
 def create_missing_marker_from_static_trial():
     dynamic_file = open_dynamic_trial()
     if not dynamic_file:
@@ -33,8 +38,8 @@ def create_missing_marker_from_static_trial():
 
     choice = qtm.gui.dialog.show_message_box(
         "Select static trial",
-        "Select the static trial you want to use to reconstruct the missing marker(s).\n\n"
-        f"{format_marker_summary(missing, almost_missing)}",
+        f"{format_marker_summary(missing, almost_missing)}\n\n"
+        "Select the static trial you want to use to reconstruct these marker(s).",
         ["Continue", "Cancel"],
     )
     if choice != "Continue":
@@ -49,5 +54,32 @@ def create_missing_marker_from_static_trial():
         qtm.file.close()
     qtm.file.open(static_file)
     print(f"Static trial: {static_file}")
-    report_static_marker_relationships(prefix, candidates)
-    print("Setup complete. Marker reconstruction has not been applied yet.")
+    marker_options = get_marker_reconstruction_options(prefix, candidates)
+    skeleton_options = get_skeleton_reconstruction_options(
+        prefix, candidates, marker_options)
+
+    if qtm.file.is_open():
+        qtm.file.close()
+    qtm.file.open(dynamic_file)
+    print(f"Reopened dynamic trial: {dynamic_file}")
+    report_reconstruction_methods(
+        prefix, candidates, marker_options, skeleton_options)
+    marker_reconstructions = apply_marker_based_reconstructions(
+        prefix, candidates, marker_options)
+    print(f"Marker-based reconstructions applied: {marker_reconstructions}")
+    if confirm_skeleton_reconstructions(
+            prefix, candidates, marker_options, skeleton_options):
+        skeleton_reconstructions = apply_skeleton_based_reconstructions(
+            prefix, candidates, marker_options, skeleton_options)
+    else:
+        skeleton_reconstructions = 0
+    print(f"Skeleton-based reconstructions applied: {skeleton_reconstructions}")
+
+    qtm.gui.dialog.show_message_box(
+        "Missing marker reconstruction complete",
+        "Missing marker reconstruction complete.\n\n"
+        f"Marker-based reconstructions: {marker_reconstructions}\n"
+        f"Skeleton-based reconstructions: {skeleton_reconstructions}\n\n"
+        "Review the reconstructed marker(s) before saving the trial.",
+        ["OK"],
+    )
