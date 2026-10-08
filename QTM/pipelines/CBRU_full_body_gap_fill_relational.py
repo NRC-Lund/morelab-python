@@ -16,7 +16,7 @@ segments = [
     ("Foot", CBRU_foot_gap_fill_relational),
 ]
 
-def full_body_gap_fill_relational():
+def CBRU_full_body_gap_fill_relational():
     marker_names = []
     gap_fill_rules = {}
 

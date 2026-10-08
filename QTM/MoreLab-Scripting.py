@@ -41,6 +41,8 @@ import pipelines.marker_filtering
 importlib.reload(pipelines.marker_filtering) # Reload to clear cache.
 import pipelines.batch_marker_filtering
 importlib.reload(pipelines.batch_marker_filtering) # Reload to clear cache.
+
+# MoRe
 import pipelines.gap_fill_relational
 importlib.reload(pipelines.gap_fill_relational) # Reload shared gap-filling logic.
 import pipelines.pelvis_gap_fill_relational
@@ -59,6 +61,26 @@ import pipelines.foot_gap_fill_relational
 importlib.reload(pipelines.foot_gap_fill_relational) # Reload to clear cache.
 import pipelines.full_body_gap_fill_relational
 importlib.reload(pipelines.full_body_gap_fill_relational) # Reload to clear cache.
+
+# CBRU Markers
+import pipelines.CBRU_head_gap_fill_relational
+importlib.reload(pipelines.CBRU_head_gap_fill_relational)
+import pipelines.CBRU_pelvis_gap_fill_relational
+importlib.reload(pipelines.CBRU_pelvis_gap_fill_relational)
+import pipelines.CBRU_torso_gap_fill_relational
+importlib.reload(pipelines.CBRU_torso_gap_fill_relational)
+import pipelines.CBRU_arm_gap_fill_relational
+importlib.reload(pipelines.CBRU_arm_gap_fill_relational)
+import pipelines.CBRU_leg_gap_fill_relational
+importlib.reload(pipelines.CBRU_leg_gap_fill_relational)
+import pipelines.CBRU_foot_gap_fill_relational
+importlib.reload(pipelines.CBRU_foot_gap_fill_relational)
+import pipelines.CBRU_full_body_gap_fill_relational
+importlib.reload(pipelines.CBRU_full_body_gap_fill_relational)
+# ENDD
+
+
+
 import pipelines.missing_marker_detection
 importlib.reload(pipelines.missing_marker_detection) # Reload to clear cache.
 import pipelines.missing_marker_dialogs
@@ -81,14 +103,31 @@ def _setup_commands():
         ("Apply Butterworth Filter to Marker Set", pipelines.marker_filtering.apply_butterworth_filter_to_marker_set),
         ("Apply Butterworth Filter to Selected Trajectories", pipelines.marker_filtering.apply_butterworth_filter_to_selected_trajectories),
         ("Batch Process Marker Filtering", pipelines.batch_marker_filtering.batch_process_marker_filtering),
-        ("Fill Gaps in Pelvis (Relational)", pipelines.pelvis_gap_fill_relational.pelvis_gap_fill_relational),
-        ("Fill Gaps in Head (Relational)", pipelines.head_gap_fill_relational.head_gap_fill_relational),
-        ("Fill Gaps in Torso (Relational)", pipelines.torso_gap_fill_relational.torso_gap_fill_relational),
-        ("Fill Gaps in Arm (Relational)", pipelines.arm_gap_fill_relational.arm_gap_fill_relational),
-        ("Fill Gaps in Thigh (Relational)", pipelines.thigh_gap_fill_relational.thigh_gap_fill_relational),
-        ("Fill Gaps in Shank (Relational)", pipelines.shank_gap_fill_relational.shank_gap_fill_relational),
-        ("Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
-        ("Fill Gaps in Full Body (Relational)", pipelines.full_body_gap_fill_relational.full_body_gap_fill_relational),
+
+        #STARTTT
+        # MoRe Gap Filling
+
+        ("MoRe - Fill Gaps in Pelvis (Relational)", pipelines.pelvis_gap_fill_relational.pelvis_gap_fill_relational),
+        ("MoRe - Fill Gaps in Head (Relational)", pipelines.head_gap_fill_relational.head_gap_fill_relational),
+        ("MoRe - Fill Gaps in Torso (Relational)", pipelines.torso_gap_fill_relational.torso_gap_fill_relational),
+        ("MoRe - Fill Gaps in Arm (Relational)", pipelines.arm_gap_fill_relational.arm_gap_fill_relational),
+        ("MoRe - Fill Gaps in Thigh (Relational)", pipelines.thigh_gap_fill_relational.thigh_gap_fill_relational),
+        ("MoRe - Fill Gaps in Shank (Relational)", pipelines.shank_gap_fill_relational.shank_gap_fill_relational),
+        ("MoRe - Fill Gaps in Foot (Relational)", pipelines.foot_gap_fill_relational.foot_gap_fill_relational),
+        ("MoRe - Fill Gaps in Full Body (Relational)", pipelines.full_body_gap_fill_relational.full_body_gap_fill_relational),
+
+
+        # CBRU Gap Filling
+
+        ("CBRU - Fill Gaps in Pelvis (Relational)", pipelines.CBRU_pelvis_gap_fill_relational.CBRU_pelvis_gap_fill_relational),
+        ("CBRU - Fill Gaps in Head (Relational)", pipelines.CBRU_head_gap_fill_relational.CBRU_head_gap_fill_relational),
+        ("CBRU - Fill Gaps in Torso (Relational)", pipelines.CBRU_torso_gap_fill_relational.CBRU_torso_gap_fill_relational),
+        ("CBRU - Fill Gaps in Arm (Relational)", pipelines.CBRU_arm_gap_fill_relational.CBRU_arm_gap_fill_relational),
+        ("CBRU - Fill Gaps in Leg (Relational)", pipelines.CBRU_leg_gap_fill_relational.CBRU_leg_gap_fill_relational),
+        ("CBRU - Fill Gaps in Foot (Relational)", pipelines.CBRU_foot_gap_fill_relational.CBRU_foot_gap_fill_relational),
+        ("CBRU - Fill Gaps in Full Body (Relational)", pipelines.CBRU_full_body_gap_fill_relational.CBRU_full_body_gap_fill_relational),
+
+        # ENDDD
         ("Create Missing Marker from Static Trial", pipelines.missing_markers.create_missing_marker_from_static_trial),
         ("Generate reference distribution", pipelines.auto_label.gui_generate_reference_distribution),
         ("Auto label everything", pipelines.auto_label.gui_auto_label_everything),
@@ -107,20 +146,36 @@ def _setup_menu():
     fmid = qtm.gui.insert_menu_submenu(mid, "Filters", None)
     mmid = qtm.gui.insert_menu_submenu(mid, "Missing Markers", None)
     gmid = qtm.gui.insert_menu_submenu(mid, "Gap Filling (Relational)", None)
+
+    cbru_mid = qtm.gui.insert_menu_submenu(gmid, "CBRU", None)
+    more_mid = qtm.gui.insert_menu_submenu(gmid, "MoRe", None)
+
     lmid = qtm.gui.insert_menu_submenu(mid, "Auto label", None)
 
     add_menu_item(fmid, "Apply Butterworth Filter to Marker Set", "Apply Butterworth Filter to Marker Set")
     add_menu_item(fmid, "Apply Butterworth Filter to Selected Trajectories", "Apply Butterworth Filter to Selected Trajectories")
     add_menu_item(fmid, "Batch Process Marker Filtering", "Batch Process Marker Filtering")
     add_menu_item(mmid, "Create Missing Marker from Static Trial", "Create Missing Marker from Static Trial")
-    add_menu_item(gmid, "Head", "Fill Gaps in Head (Relational)")
-    add_menu_item(gmid, "Pelvis", "Fill Gaps in Pelvis (Relational)")
-    add_menu_item(gmid, "Torso", "Fill Gaps in Torso (Relational)")
-    add_menu_item(gmid, "Arm & Hand", "Fill Gaps in Arm (Relational)")
-    add_menu_item(gmid, "Thigh", "Fill Gaps in Thigh (Relational)")
-    add_menu_item(gmid, "Shank", "Fill Gaps in Shank (Relational)")
-    add_menu_item(gmid, "Foot", "Fill Gaps in Foot (Relational)")
-    add_menu_item(gmid, "Full Body", "Fill Gaps in Full Body (Relational)")
+
+    # More markers
+    add_menu_item(more_mid, "Head", "MoRe - Fill Gaps in Head (Relational)")
+    add_menu_item(more_mid, "Pelvis", "MoRe - Fill Gaps in Pelvis (Relational)")
+    add_menu_item(more_mid, "Torso", "MoRe - Fill Gaps in Torso (Relational)")
+    add_menu_item(more_mid, "Arm & Hand", "MoRe - Fill Gaps in Arm (Relational)")
+    add_menu_item(more_mid, "Thigh", "MoRe - Fill Gaps in Thigh (Relational)")
+    add_menu_item(more_mid, "Shank", "MoRe - Fill Gaps in Shank (Relational)")
+    add_menu_item(more_mid, "Foot", "MoRe - Fill Gaps in Foot (Relational)")
+    add_menu_item(more_mid, "Full Body", "MoRe - Fill Gaps in Full Body (Relational)")
+
+    # CBRU Markers
+    add_menu_item(cbru_mid, "Head", "CBRU - Fill Gaps in Head (Relational)")
+    add_menu_item(cbru_mid, "Pelvis", "CBRU - Fill Gaps in Pelvis (Relational)")
+    add_menu_item(cbru_mid, "Torso", "CBRU - Fill Gaps in Torso (Relational)")
+    add_menu_item(cbru_mid, "Arm & Hand", "CBRU - Fill Gaps in Arm (Relational)")
+    add_menu_item(cbru_mid, "Leg", "CBRU - Fill Gaps in Leg (Relational)")
+    add_menu_item(cbru_mid, "Foot", "CBRU - Fill Gaps in Foot (Relational)")
+    add_menu_item(cbru_mid, "Full Body", "CBRU - Fill Gaps in Full Body (Relational)")
+
     add_menu_item(lmid, "Generate reference distribution", "Generate reference distribution")
     add_menu_item(lmid, "Auto label everything", "Auto label everything")
     add_menu_item(lmid, "Auto label labelled", "Auto label labelled")

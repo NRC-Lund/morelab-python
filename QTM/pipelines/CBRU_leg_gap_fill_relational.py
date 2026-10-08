@@ -274,5 +274,5 @@ base_gap_fill_rules = {
     ],
 }
 
-def thigh_gap_fill_relational():
+def CBRU_leg_gap_fill_relational():
     gap_fill_relational(base_marker_names, base_gap_fill_rules)
